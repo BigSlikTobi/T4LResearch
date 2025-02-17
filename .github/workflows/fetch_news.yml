@@ -34,7 +34,7 @@ jobs:
 
     - name: Install Playwright Browsers  
       run: playwright install
-
+        
     - name: Run news fetcher
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
