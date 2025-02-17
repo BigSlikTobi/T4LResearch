@@ -25,24 +25,20 @@ def is_valid_url(url: str) -> bool:
         return False
 
 def clean_url(url: str) -> str:
-    """Clean URL by removing non-printable characters and normalizing spaces."""
+    """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
     if not url:
         return url
+    # Remove non-printable characters (ASCII codes 0-31 and 127)
+    url = ''.join(char for char in url if 32 <= ord(char) <= 126)
+    # Replace any sequence of whitespace characters (including newlines) with a single hyphen
+    url = re.sub(r'\s+', '-', url.strip())
     
-    # Remove all non-printable characters
-    url = ''.join(char for char in url if ord(char) >= 32 and ord(char) <= 126)
-    
-    # Normalize spaces and remove unwanted characters
-    url = url.strip().replace('\n', '').replace('\r', '').replace(' ', '-')
-    
-    # Encode URL properly while preserving structure
+    # Encode URL parts to preserve structure
     try:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
         query = urllib.parse.quote_plus(parts.query, safe='=&')
-        
-        # Reconstruct the URL
-        clean_url = urllib.parse.urlunparse((
+        clean_url_result = urllib.parse.urlunparse((
             parts.scheme,
             parts.netloc,
             path,
@@ -50,8 +46,7 @@ def clean_url(url: str) -> str:
             query,
             parts.fragment
         ))
-        
-        return clean_url if is_valid_url(clean_url) else url
+        return clean_url_result if is_valid_url(clean_url_result) else url
     except Exception as e:
         logging.warning(f"Error cleaning URL {url}: {e}")
         return url
