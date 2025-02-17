@@ -1,9 +1,8 @@
-# supabase_init.py
 import os
 import json
 import logging
 from supabase import create_client, Client  # Import Client
-from urllib.parse import urlparse, quote, quote_plus, urlunparse
+from urllib.parse import urlparse
 from createArticles.detectTeam import detectTeam  # Relative import
 
 logging.basicConfig(level=logging.INFO)
@@ -17,46 +16,16 @@ class SupabaseClient:
         self.client = create_client(supabase_url, supabase_key)
         self.team_detector = detectTeam()
 
-    def clean_url(self, url: str) -> str:
-        """Clean URL by removing non-printable characters and properly encoding."""
-        if not url:
-            return url
-        
-        # Remove all non-printable characters
-        url = ''.join(char for char in url if ord(char) >= 32 and ord(char) <= 126)
-        
-        try:
-            parts = urlparse(url)
-            path = quote(parts.path)
-            query = quote_plus(parts.query, safe='=&')
-            
-            return urlunparse((
-                parts.scheme,
-                parts.netloc,
-                path,
-                parts.params,
-                query,
-                parts.fragment
-            ))
-        except Exception as e:
-            logging.warning(f"Error cleaning URL {url}: {e}")
-            return url
-
     def post_new_source_article_to_supabase(self, article: dict) -> None: # Changed to dict
         # Use the 'id' key as fallback for 'uniqueName'
         unique_name = article.get("uniqueName", article.get("id"))
         publishedAt = article.get("publishedAt", article.get("published_at"))
-        
-        # Clean the URL before inserting
-        url = self.clean_url(article["url"])
-        href = self.clean_url(article["href"])
-        
         payload = {
             "uniqueName": unique_name,
             "source": article["source"],
             "headline": article["headline"],
-            "href": href,
-            "url": url,
+            "href": article["href"],
+            "url": article["url"],
             "publishedAt": publishedAt,
             "isProcessed": article.get("isProcessed", False),
         }
@@ -91,9 +60,9 @@ class SupabaseClient:
                 "isHeadline": False,
                 "Team": team_name
             }
-            response = self.client.table("NewsArticle").insert(record_to_insert).execute()  # Removed list here too
-            if response and len(response.data) > 0:  # Access data attribute
-                new_id = response.data[0].get("id") # Access data attribute
+            response = self.client.table("NewsArticle").insert([record_to_insert]).execute()
+            if response and len(response) > 1 and response[1]:
+                new_id = response[1][0].get("id")
                 logging.info(f"Created new record in 'NewsArticle' table with ID: {new_id}")
                 return new_id
             else:
@@ -105,14 +74,8 @@ class SupabaseClient:
 
     def mark_article_as_processed(self, article_id: int) -> None:
         try:
-            # Assuming 'article_id' corresponds to the 'uniqueName' in NewsResults
-            response = self.client.table("NewsResults").update({"isProcessed": True}).eq("uniqueName", article_id).execute()
-            if response and response.data: # Check if the response is valid and contains data
-               logging.info(f"Article ID {article_id} marked as processed.")
-            else:
-                logging.warning(f"Article ID {article_id} not found or already processed.")
-
-
+            self.client.table("NewsResults").update({"isProcessed": True}).eq("id", article_id).execute()
+            logging.info(f"Article ID {article_id} marked as processed.")
         except Exception as e:
             logging.error(f"Error marking article {article_id} as processed: {e}")
 
@@ -127,10 +90,9 @@ if __name__ == "__main__":
     with open("images.json", "r", encoding="utf-8") as f:
         images_data = json.load(f)
     for article in unprocessed_articles:
-        # article_id is now the uniqueName (which should be unique)
-        article_id = article["uniqueName"]
+        article_id = article["id"]
         logging.info(f"Storing data for article ID: {article_id}")
-        str_id = str(article["id"]) # Keep using the original 'id' for filenames
+        str_id = str(article_id)
         english_data = english_articles.get(str_id, {"headline": "", "content": ""})
         german_data = german_articles.get(str_id, {"headline": "", "content": ""})
         image_data = images_data.get(str_id, {

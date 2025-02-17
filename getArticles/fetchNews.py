@@ -36,17 +36,17 @@ if llm_choice == "openai":
     provider = "openai/gpt-4o-mini"  # Or your preferred model
     api_token = OPENAI_API_KEY
     OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-elif llm_choice == "gemini":  # NOT WORKING AT THE MOMENT!!!
+elif llm_choice == "gemini": #NOT WORKING AT THE MOMENT!!!
     # Gemini Setup
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError("Please set the GEMINI_API_KEY environment variable.")
     genai.configure(api_key=GEMINI_API_KEY)
-    provider = "gemini"  # This needs to match initialize_model
+    provider = "gemini" #This needs to match initialize_model
     api_token = GEMINI_API_KEY
     # gemini_model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-01-21") #Not needed here.
-    # the initialize_model does this.
-else:  # Important to add to avoid errors later
+    #the initialize_model does this.
+else: #Important to add to avoid errors later
     raise ValueError("Invalid LLM Choice")
 
 print("Setup complete.")
@@ -59,15 +59,12 @@ supabase: Client = create_client(url, key)
 
 # Define JSON schema
 class NewsItem(BaseModel):
-    uniqueName: str = Field(
-        ...,
-        alias="id",
-        description="Unique ID/use the headline and convert to lowercase with hyphens",
-    )
+    uniqueName: str = Field(..., alias="id", description="Unique ID/use the headline and convert to lowercase with hyphens")
     source: str = Field(..., description="Website domain or brand name")
     headline: str = Field(..., description="Extracted headline text")
     href: str = Field(..., description="Relative URL (href) from the anchor tag")
     url: str = Field(..., description="Full URL of the news item")
+<<<<<<< HEAD
     publishedAt: str = Field(
         ..., alias="published_at", description="Publication date inन्तिथी-MM-DD format"
     )
@@ -75,6 +72,10 @@ class NewsItem(BaseModel):
         False, description="Flag indicating if the item has been processed"
     )
 
+=======
+    publishedAt: str = Field(..., alias="published_at", description="Publication date in YYYY-MM-DD format")
+    isProcessed: bool = Field(False, description="Flag indicating if the item has been processed")
+>>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
 
 def clean_url_for_extraction(url: str) -> str:
     """Clean URL by removing non-printable characters and properly encoding."""
@@ -110,11 +111,11 @@ def clean_url_for_extraction(url: str) -> str:
 
 # Define the scraper function
 async def scrape_sports_news(
-    url: str,
+url: str,
     base_url: str,
     schema: Type[BaseModel] = NewsItem,
     max_items: int = 10,
-    time_period: str = "last 48 hours",
+    time_period: str = "last 48 hours"
 ):
     """Reusable sports news scraper for any website"""
 
@@ -135,7 +136,7 @@ async def scrape_sports_news(
         api_token=api_token,
         schema=schema.schema_json(),
         extraction_type="schemas",
-        instruction=instruction,
+        instruction=instruction
     )
     print(f"provider: {provider}")
 
@@ -144,8 +145,9 @@ async def scrape_sports_news(
             url=url,
             word_count_threshold=1,
             extraction_strategy=strategy,
-            cache_mode=CacheMode.DISABLED,
+            cache_mode=CacheMode.DISABLED
         )
+<<<<<<< HEAD
     # --- Crucial Change: Explicitly handle encoding ---
     # Decode using UTF-8, handling potential errors
     try:
@@ -180,6 +182,18 @@ async def get_all_news_items():
             "base_url": "https://www.nytimes.com",
             "execute": False,
         },
+=======
+    print(result.extracted_content)
+    return json.loads(result.extracted_content)
+
+# New function to obtain and combine news items from each site
+async def get_all_news_items():
+    websites = [
+        {"name": "nfl", "url": "https://www.nfl.com/news/", "base_url": "https://www.nfl.com", "execute": True},
+        {"name": "espn", "url": "https://www.espn.com/nfl/", "base_url": "https://www.espn.com", "execute": True},
+        {"name": "bleacherreport", "url": "https://www.bleacherreport.com/nfl", "base_url": "https://www.bleacherreport.com", "execute": False},
+        {"name": "nytimes", "url": "https://www.nytimes.com/athletic/nfl/", "base_url": "https://www.nytimes.com", "execute": False}
+>>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
     ]
     all_news_items = []
     for site in websites:
@@ -192,6 +206,45 @@ async def get_all_news_items():
             print(f"Scraped news items from {site['name']}:", news_items)
     return all_news_items
 
-
 if __name__ == "__main__":
     asyncio.run(get_all_news_items())
+
+
+import asyncio
+from dotenv import load_dotenv
+from getArticles.fetchNews import get_all_news_items
+from supabase_init import SupabaseClient #Make sure this file exists and works.
+import LLMSetup
+import logging
+
+logging.basicConfig(level=logging.INFO)
+load_dotenv()
+
+async def main():
+    supabase_client = SupabaseClient()
+     # Initialize LLMs if not already initialized.  Only need to do this *once*.
+    llm_choice = "openai"  # Match the choice in fetchNews.py
+
+    try:
+        llms = LLMSetup.initialize_model(llm_choice)  # Initialize only the selected LLM
+        logging.info("LLMs initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize LLMs: {e}")
+        return
+
+
+    # Obtain news articles using the helper from fetchNews.py
+    news_articles = await get_all_news_items()
+
+    # Post news articles to Supabase one by one
+    for article in news_articles:
+        try:
+            supabase_client.post_new_source_article_to_supabase([article])
+            article_name = article.get("uniqueName", article.get("id", "Unknown"))
+            logging.info(f"Successfully posted article: {article_name}")
+        except Exception as e:
+            article_name = article.get("uniqueName", article.get("id", "Unknown"))
+            logging.error(f"Failed to post article {article_name}: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
