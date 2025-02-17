@@ -1,6 +1,10 @@
 import asyncio
 from dotenv import load_dotenv
+<<<<<<< HEAD
 from fetchNews import get_all_news_items
+=======
+from getArticles.fetchNews import get_all_news_items
+>>>>>>> 37ccd03d42a313bbf34fdfb4b9f1a96b96327cc6
 from supabase_init import SupabaseClient
 import LLMSetup
 import logging

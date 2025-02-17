@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import urllib.parse
 from pydantic import BaseModel, Field
 from typing import Type
 # Supabase imports
@@ -70,6 +72,7 @@ class NewsItem(BaseModel):
     )
 
 
+<<<<<<< HEAD
 def clean_string(text: str) -> str:
     """Removes non-printable characters and normalizes whitespace."""
     if not isinstance(text, str): #Handles if it is not a string
@@ -81,6 +84,38 @@ def clean_string(text: str) -> str:
     #Strip
     text = text.strip()
     return text
+=======
+def clean_url_for_extraction(url: str) -> str:
+    """Clean URL by removing non-printable characters and properly encoding."""
+    if not url:
+        return url
+    
+    # Remove all non-printable characters
+    url = ''.join(char for char in url if ord(char) >= 32)
+    
+    # Normalize spaces and remove unwanted characters
+    url = url.strip().replace('\n', '').replace('\r', '').replace(' ', '-')
+    
+    # Encode URL properly while preserving structure
+    try:
+        parts = urllib.parse.urlparse(url)
+        path = urllib.parse.quote(parts.path)
+        query = urllib.parse.quote_plus(parts.query, safe='=&')
+        
+        # Reconstruct the URL
+        clean_url = urllib.parse.urlunparse((
+            parts.scheme,
+            parts.netloc,
+            path,
+            parts.params,
+            query,
+            parts.fragment
+        ))
+        return clean_url
+    except Exception:
+        # If URL parsing fails, just return the basic cleaned URL
+        return url
+>>>>>>> 37ccd03d42a313bbf34fdfb4b9f1a96b96327cc6
 
 
 # Define the scraper function
@@ -133,6 +168,7 @@ async def scrape_sports_news(
     extracted_data = json.loads(decoded_content) #Use decoded content
     cleaned_data = []
     for item in extracted_data:
+<<<<<<< HEAD
         # Clean ALL string fields:
         for key, value in item.items():
             if isinstance(value, str):
@@ -140,6 +176,14 @@ async def scrape_sports_news(
         #Further cleaning specific for url and ID
         item["url"] = item["url"].replace(" ", "-")
         item["id"] = item["id"].replace(" ", "-")
+=======
+        # Clean the URL with enhanced cleaning:
+        item["url"] = clean_url_for_extraction(item["url"])
+
+        # Clean ID:
+        item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
+
+>>>>>>> 37ccd03d42a313bbf34fdfb4b9f1a96b96327cc6
         cleaned_data.append(item)
 
     return cleaned_data  # Return the *cleaned* list
