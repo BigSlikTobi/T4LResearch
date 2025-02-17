@@ -1,5 +1,6 @@
 import asyncio
 from dotenv import load_dotenv
+from .fetchNews import get_all_news_items 
 from getArticles.fetchNews import get_all_news_items  # Changed absolute import for GitHub Actions compatibility
 from supabase_init import SupabaseClient
 import LLMSetup
