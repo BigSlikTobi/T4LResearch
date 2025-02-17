@@ -3,7 +3,7 @@ import os
 import json
 import logging
 from supabase import create_client, Client  # Import Client
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote, quote_plus, urlunparse
 from createArticles.detectTeam import detectTeam  # Relative import
 
 logging.basicConfig(level=logging.INFO)
@@ -17,16 +17,46 @@ class SupabaseClient:
         self.client = create_client(supabase_url, supabase_key)
         self.team_detector = detectTeam()
 
+    def clean_url(self, url: str) -> str:
+        """Clean URL by removing non-printable characters and properly encoding."""
+        if not url:
+            return url
+        
+        # Remove all non-printable characters
+        url = ''.join(char for char in url if ord(char) >= 32 and ord(char) <= 126)
+        
+        try:
+            parts = urlparse(url)
+            path = quote(parts.path)
+            query = quote_plus(parts.query, safe='=&')
+            
+            return urlunparse((
+                parts.scheme,
+                parts.netloc,
+                path,
+                parts.params,
+                query,
+                parts.fragment
+            ))
+        except Exception as e:
+            logging.warning(f"Error cleaning URL {url}: {e}")
+            return url
+
     def post_new_source_article_to_supabase(self, article: dict) -> None: # Changed to dict
         # Use the 'id' key as fallback for 'uniqueName'
         unique_name = article.get("uniqueName", article.get("id"))
         publishedAt = article.get("publishedAt", article.get("published_at"))
+        
+        # Clean the URL before inserting
+        url = self.clean_url(article["url"])
+        href = self.clean_url(article["href"])
+        
         payload = {
             "uniqueName": unique_name,
             "source": article["source"],
             "headline": article["headline"],
-            "href": article["href"],
-            "url": article["url"],
+            "href": href,
+            "url": url,
             "publishedAt": publishedAt,
             "isProcessed": article.get("isProcessed", False),
         }

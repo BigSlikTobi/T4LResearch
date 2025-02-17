@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import urllib.parse
 from pydantic import BaseModel, Field
 from typing import Type
 # Supabase imports
@@ -69,6 +71,38 @@ class NewsItem(BaseModel):
     )
 
 
+def clean_url_for_extraction(url: str) -> str:
+    """Clean URL by removing non-printable characters and properly encoding."""
+    if not url:
+        return url
+    
+    # Remove all non-printable characters
+    url = ''.join(char for char in url if ord(char) >= 32)
+    
+    # Normalize spaces and remove unwanted characters
+    url = url.strip().replace('\n', '').replace('\r', '').replace(' ', '-')
+    
+    # Encode URL properly while preserving structure
+    try:
+        parts = urllib.parse.urlparse(url)
+        path = urllib.parse.quote(parts.path)
+        query = urllib.parse.quote_plus(parts.query, safe='=&')
+        
+        # Reconstruct the URL
+        clean_url = urllib.parse.urlunparse((
+            parts.scheme,
+            parts.netloc,
+            path,
+            parts.params,
+            query,
+            parts.fragment
+        ))
+        return clean_url
+    except Exception:
+        # If URL parsing fails, just return the basic cleaned URL
+        return url
+
+
 # Define the scraper function
 async def scrape_sports_news(
     url: str,
@@ -112,19 +146,11 @@ async def scrape_sports_news(
     extracted_data = json.loads(result.extracted_content)
     cleaned_data = []
     for item in extracted_data:
-        # Clean the URL:
-        item["url"] = item["url"].strip()  # Remove leading/trailing whitespace
-        item["url"] = (
-            item["url"].replace("\n", "").replace("\r", "")
-        )  # Remove newline/carriage return
-        item["url"] = item["url"].replace(
-            " ", "-"
-        )  # Replace spaces with hyphens
+        # Clean the URL with enhanced cleaning:
+        item["url"] = clean_url_for_extraction(item["url"])
 
         # Clean ID:
-        item["id"] = item["id"].strip()
-        item["id"] = item["id"].replace("\n", "").replace("\r", "")
-        item["id"] = item["id"].replace(" ", "-")
+        item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
 
         cleaned_data.append(item)
     return cleaned_data  # Return the *cleaned* list
