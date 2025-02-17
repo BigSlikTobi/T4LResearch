@@ -1,6 +1,6 @@
 import asyncio
 from dotenv import load_dotenv
-from fetchNews import get_all_news_items 
+from getArticles.fetchNews import get_all_news_items  # Changed absolute import for GitHub Actions compatibility
 from supabase_init import SupabaseClient
 import LLMSetup
 import logging
@@ -8,10 +8,8 @@ import re
 import urllib.parse
 from urllib.parse import urlparse
 import os
-import sys
 
-# Add parent directory to PYTHONPATH to import modules from root
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Removed unnecessary sys.path.append since we're using relative imports
 
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
@@ -38,6 +36,7 @@ def clean_url(url: str) -> str:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
         query = urllib.parse.quote_plus(parts.query, safe='=&')
+
         clean_url_result = urllib.parse.urlunparse((
             parts.scheme,
             parts.netloc,
@@ -46,6 +45,7 @@ def clean_url(url: str) -> str:
             query,
             parts.fragment
         ))
+
         return clean_url_result if is_valid_url(clean_url_result) else url
     except Exception as e:
         logging.warning(f"Error cleaning URL {url}: {e}")
