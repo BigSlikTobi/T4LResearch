@@ -1,4 +1,8 @@
 import os
+import sys
+# Add parent directory to PYTHONPATH to import modules from root
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import json
 import re
 import urllib.parse
@@ -72,19 +76,6 @@ class NewsItem(BaseModel):
     )
 
 
-<<<<<<< HEAD
-def clean_string(text: str) -> str:
-    """Removes non-printable characters and normalizes whitespace."""
-    if not isinstance(text, str): #Handles if it is not a string
-        return text
-    # Remove control characters (ASCII 0-31 and 127)
-    text = re.sub(r'[\x00-\x1F\x7F]', '', text)
-    # Replace multiple spaces with a single space
-    text = re.sub(r'\s+', ' ', text)
-    #Strip
-    text = text.strip()
-    return text
-=======
 def clean_url_for_extraction(url: str) -> str:
     """Clean URL by removing non-printable characters and properly encoding."""
     if not url:
@@ -115,7 +106,6 @@ def clean_url_for_extraction(url: str) -> str:
     except Exception:
         # If URL parsing fails, just return the basic cleaned URL
         return url
->>>>>>> 37ccd03d42a313bbf34fdfb4b9f1a96b96327cc6
 
 
 # Define the scraper function
@@ -165,45 +155,19 @@ async def scrape_sports_news(
         decoded_content = result.extracted_content # Fallback to original if decoding fails
 
     # --- Crucial Change: Clean the extracted data ---
-    extracted_data = json.loads(decoded_content) #Use decoded content
+    extracted_data = json.loads(decoded_content)  # Use decoded content
     cleaned_data = []
     for item in extracted_data:
-<<<<<<< HEAD
-        # Clean ALL string fields:
-        for key, value in item.items():
-            if isinstance(value, str):
-                item[key] = clean_string(value)
-        #Further cleaning specific for url and ID
-        item["url"] = item["url"].replace(" ", "-")
-        item["id"] = item["id"].replace(" ", "-")
-=======
         # Clean the URL with enhanced cleaning:
         item["url"] = clean_url_for_extraction(item["url"])
 
         # Clean ID:
         item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
-
->>>>>>> 37ccd03d42a313bbf34fdfb4b9f1a96b96327cc6
         cleaned_data.append(item)
+    return cleaned_data
 
-    return cleaned_data  # Return the *cleaned* list
-
-
-# New function to obtain and combine news items from each site
 async def get_all_news_items():
     websites = [
-        {
-            "name": "nfl",
-            "url": "https://www.nfl.com/news/",
-            "base_url": "https://www.nfl.com",
-            "execute": True,
-        },
-        {
-            "name": "espn",
-            "url": "https://www.espn.com/nfl/",
-            "base_url": "https://www.espn.com",
-            "execute": True,
-        },
         {
             "name": "bleacherreport",
             "url": "https://www.bleacherreport.com/nfl",
