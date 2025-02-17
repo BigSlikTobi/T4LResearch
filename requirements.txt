@@ -1,12 +1,11 @@
 crawl4ai
 nest_asyncio
 requests
-supabase
+supabase>=2.13.0
 playwright
 google-generativeai
 duckduckgo-search
 python-dotenv
 pytest
-genai
 openai
-tiktoken>=0.4.0
+PyYAML

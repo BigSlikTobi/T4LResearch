@@ -27,45 +27,6 @@ The T4L Research Project is an innovative approach that automatically scrapes ne
 - **Supabase Integration**: Efficiently stores and manages processed articles.
 - **Modular Design**: Easily extendable for additional features or new news sources.
 
-## Project Structure
-```
-T4LResearch/
-├── createArticles/          # Scripts for processing and enriching articles
-│   ├── content_extractor.py
-│   ├── detectTeam.py
-│   ├── englishArticle.py
-│   ├── extractContent.py
-│   ├── fetchUnprocessedArticles.py
-│   ├── germanArticle.py
-│   ├── getImage.py
-│   ├── keyword_extractor.py
-│   ├── relatedArticles.py
-│   ├── runPipeline.py
-│   ├── storeInDB.py
-│   ├── prompts.yaml
-│   └── env/                 # Virtual environment for dependencies
-│
-├── getArticles/             # Scripts for fetching news articles
-│   ├── fetchNews.py
-│   ├── postNews.py
-│   ├── tests/               # Test scripts
-│   └── test_supabase.py
-│
-├── LLMSetup.py              # Setup and initialization of LLM models
-├── supabase_init.py         # Supabase client and database operations
-├── requirements.txt         # Project dependencies
-└── readme.md                # Project documentation (this file)
-```
-
-## Installation & Setup
-### Prerequisites
-- **Python**: Version 3.12
-- **Virtual Environment**: Recommended for dependency management
-
-### Steps
-#### Clone the Repository:
-```bash
-git clone <repository_url>
 cd T4LResearch
 ```
 
