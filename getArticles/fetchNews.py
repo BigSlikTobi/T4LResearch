@@ -64,18 +64,8 @@ class NewsItem(BaseModel):
     headline: str = Field(..., description="Extracted headline text")
     href: str = Field(..., description="Relative URL (href) from the anchor tag")
     url: str = Field(..., description="Full URL of the news item")
-<<<<<<< HEAD
-    publishedAt: str = Field(
-        ..., alias="published_at", description="Publication date inन्तिथी-MM-DD format"
-    )
-    isProcessed: bool = Field(
-        False, description="Flag indicating if the item has been processed"
-    )
-
-=======
     publishedAt: str = Field(..., alias="published_at", description="Publication date in YYYY-MM-DD format")
     isProcessed: bool = Field(False, description="Flag indicating if the item has been processed")
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
 
 def clean_url_for_extraction(url: str) -> str:
     """Clean URL by removing non-printable characters and properly encoding."""
@@ -147,8 +137,6 @@ url: str,
             extraction_strategy=strategy,
             cache_mode=CacheMode.DISABLED
         )
-<<<<<<< HEAD
-    # --- Crucial Change: Explicitly handle encoding ---
     # Decode using UTF-8, handling potential errors
     try:
         decoded_content = result.extracted_content.encode('latin-1', 'replace').decode('utf-8', 'replace')
@@ -156,7 +144,7 @@ url: str,
         print(f"Decoding error: {e}")
         decoded_content = result.extracted_content # Fallback to original if decoding fails
 
-    # --- Crucial Change: Clean the extracted data ---
+    # Clean the extracted data
     extracted_data = json.loads(decoded_content)  # Use decoded content
     cleaned_data = []
     for item in extracted_data:
@@ -168,24 +156,6 @@ url: str,
         cleaned_data.append(item)
     return cleaned_data
 
-async def get_all_news_items():
-    websites = [
-        {
-            "name": "bleacherreport",
-            "url": "https://www.bleacherreport.com/nfl",
-            "base_url": "https://www.bleacherreport.com",
-            "execute": False,
-        },
-        {
-            "name": "nytimes",
-            "url": "https://www.nytimes.com/athletic/nfl/",
-            "base_url": "https://www.nytimes.com",
-            "execute": False,
-        },
-=======
-    print(result.extracted_content)
-    return json.loads(result.extracted_content)
-
 # New function to obtain and combine news items from each site
 async def get_all_news_items():
     websites = [
@@ -193,7 +163,6 @@ async def get_all_news_items():
         {"name": "espn", "url": "https://www.espn.com/nfl/", "base_url": "https://www.espn.com", "execute": True},
         {"name": "bleacherreport", "url": "https://www.bleacherreport.com/nfl", "base_url": "https://www.bleacherreport.com", "execute": False},
         {"name": "nytimes", "url": "https://www.nytimes.com/athletic/nfl/", "base_url": "https://www.nytimes.com", "execute": False}
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
     ]
     all_news_items = []
     for site in websites:

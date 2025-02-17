@@ -1,10 +1,6 @@
 import asyncio
 from dotenv import load_dotenv
-<<<<<<< HEAD
-from fetchNews import get_all_news_items
-=======
 from getArticles.fetchNews import get_all_news_items 
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
 from supabase_init import SupabaseClient
 import LLMSetup
 import logging
@@ -13,6 +9,7 @@ import urllib.parse
 from urllib.parse import urlparse
 import os
 import sys
+
 # Add parent directory to PYTHONPATH to import modules from root
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
@@ -61,53 +58,32 @@ def clean_url(url: str) -> str:
 
 async def main():
     supabase_client = SupabaseClient()
-<<<<<<< HEAD
     llm_choice = "openai"
-
     try:
         llms = LLMSetup.initialize_model(llm_choice)
-=======
-    # Initialize LLMs if not already initialized
-    try:
-        llms = LLMSetup.initialize_model("both")
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
         logging.info("LLMs initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize LLMs: {e}")
         return
-
-<<<<<<< HEAD
-=======
+    
     # Obtain news articles using the helper from fetchNews.py
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
     news_articles = await get_all_news_items()
-
     for article in news_articles:
         try:
-<<<<<<< HEAD
             if 'url' in article:
-                cleaned_url = clean_url(article['url'])
-                if not is_valid_url(cleaned_url):
-                    logging.warning(f"Invalid URL found: {cleaned_url}")
+                cleaned = clean_url(article['url'])
+                if not is_valid_url(cleaned):
+                    logging.warning(f"Invalid URL found: {cleaned}")
                     continue
-                article['url'] = cleaned_url
+                article['url'] = cleaned
             
             result = supabase_client.post_new_source_article_to_supabase(article)
             article_name = article.get("uniqueName", article.get("id", "Unknown"))
             logging.info(f"Successfully posted article: {article_name}")
-
         except Exception as e:
             article_name = article.get("uniqueName", article.get("id", "Unknown"))
             logging.error(f"Error posting {article_name}: {e}")
             continue
-=======
-            supabase_client.post_new_source_article_to_supabase([article])
-            article_name = article.get("uniqueName", article.get("id", "Unknown"))
-            logging.info(f"Successfully posted article: {article_name}")
-        except Exception as e:
-            article_name = article.get("uniqueName", article.get("id", "Unknown"))
-            logging.error(f"Failed to post article {article_name}: {e}")
->>>>>>> parent of a8f40f2 (Resolve invalid non-printable ASCII (#9))
 
 if __name__ == "__main__":
     asyncio.run(main())
