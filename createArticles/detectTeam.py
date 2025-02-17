@@ -4,7 +4,7 @@ import requests
 from dotenv import load_dotenv
 import os
 import yaml
-from ..LLMSetup import initialize_model
+from LLMSetup import initialize_model
 
 class detectTeam:
     def __init__(self):
