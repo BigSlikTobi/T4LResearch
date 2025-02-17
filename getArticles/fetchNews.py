@@ -1,7 +1,5 @@
 import os
 import json
-import re
-import urllib.parse
 from pydantic import BaseModel, Field
 from typing import Type
 # Supabase imports
@@ -11,8 +9,9 @@ from crawl4ai import AsyncWebCrawler, CacheMode
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 import asyncio
 # LLMSetup imports
-from LLMSetup import initialize_model  #Absolute Import
+from LLMSetup import initialize_model
 import google.generativeai as genai
+import re #Import the regular expression module
 
 # Hardcode the LLM choice here:
 llm_choice = "openai"  # Or "gemini", whichever you want as the default
@@ -64,43 +63,24 @@ class NewsItem(BaseModel):
     href: str = Field(..., description="Relative URL (href) from the anchor tag")
     url: str = Field(..., description="Full URL of the news item")
     publishedAt: str = Field(
-        ..., alias="published_at", description="Publication date in YYYY-MM-DD format"
+        ..., alias="published_at", description="Publication date inन्तिथी-MM-DD format"
     )
     isProcessed: bool = Field(
         False, description="Flag indicating if the item has been processed"
     )
 
 
-def clean_url_for_extraction(url: str) -> str:
-    """Clean URL by removing non-printable characters and properly encoding."""
-    if not url:
-        return url
-    
-    # Remove all non-printable characters
-    url = ''.join(char for char in url if ord(char) >= 32)
-    
-    # Normalize spaces and remove unwanted characters
-    url = url.strip().replace('\n', '').replace('\r', '').replace(' ', '-')
-    
-    # Encode URL properly while preserving structure
-    try:
-        parts = urllib.parse.urlparse(url)
-        path = urllib.parse.quote(parts.path)
-        query = urllib.parse.quote_plus(parts.query, safe='=&')
-        
-        # Reconstruct the URL
-        clean_url = urllib.parse.urlunparse((
-            parts.scheme,
-            parts.netloc,
-            path,
-            parts.params,
-            query,
-            parts.fragment
-        ))
-        return clean_url
-    except Exception:
-        # If URL parsing fails, just return the basic cleaned URL
-        return url
+def clean_string(text: str) -> str:
+    """Removes non-printable characters and normalizes whitespace."""
+    if not isinstance(text, str): #Handles if it is not a string
+        return text
+    # Remove control characters (ASCII 0-31 and 127)
+    text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+    # Replace multiple spaces with a single space
+    text = re.sub(r'\s+', ' ', text)
+    #Strip
+    text = text.strip()
+    return text
 
 
 # Define the scraper function
@@ -141,18 +121,27 @@ async def scrape_sports_news(
             extraction_strategy=strategy,
             cache_mode=CacheMode.DISABLED,
         )
-    print(result.extracted_content)
+    # --- Crucial Change: Explicitly handle encoding ---
+    # Decode using UTF-8, handling potential errors
+    try:
+        decoded_content = result.extracted_content.encode('latin-1', 'replace').decode('utf-8', 'replace')
+    except Exception as e:
+        print(f"Decoding error: {e}")
+        decoded_content = result.extracted_content # Fallback to original if decoding fails
+
     # --- Crucial Change: Clean the extracted data ---
-    extracted_data = json.loads(result.extracted_content)
+    extracted_data = json.loads(decoded_content) #Use decoded content
     cleaned_data = []
     for item in extracted_data:
-        # Clean the URL with enhanced cleaning:
-        item["url"] = clean_url_for_extraction(item["url"])
-
-        # Clean ID:
-        item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
-
+        # Clean ALL string fields:
+        for key, value in item.items():
+            if isinstance(value, str):
+                item[key] = clean_string(value)
+        #Further cleaning specific for url and ID
+        item["url"] = item["url"].replace(" ", "-")
+        item["id"] = item["id"].replace(" ", "-")
         cleaned_data.append(item)
+
     return cleaned_data  # Return the *cleaned* list
 
 
