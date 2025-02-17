@@ -1,86 +1,105 @@
 # T4L Research Project
+## A Cutting-Edge News Enrichment Platform
+
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Installation & Setup](#installation--setup)
+  - [Prerequisites](#prerequisites)
+  - [Steps](#steps)
+- [Usage](#usage)
+  - [Fetching News Articles](#fetching-news-articles)
+  - [Processing Articles](#processing-articles)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Overview
-This project is designed to fetch, process, and store news articles using various AI models and APIs. The main components of the project include fetching news articles, processing them to extract relevant content, and storing the processed data in a Supabase database.
+The T4L Research Project is an innovative approach that automatically scrapes news content from leading websites, enriches it with essential background information, and generates unique, informative articles. The project leverages the power of Crawl4AI for content extraction, modern LLMs for content enrichment, and Supabase for seamless database integration and frontend sharing.
 
-## Project Structure
-createArticles: Contains scripts for processing articles.
+## Features
+- **Automated News Scraping**: Seamlessly extracts articles from major news websites.
+- **Content Enrichment**: Uses advanced LLMs (Gemini and OpenAI) to enhance article information.
+- **Multi-Language Support**: Processes both English and German articles.
+- **Robust Pipeline**: Integrated scripts for extraction, enrichment, and storage.
+- **Supabase Integration**: Efficiently stores and manages processed articles.
+- **Modular Design**: Easily extendable for additional features or new news sources.
 
-content_extractor.py: Extracts content from articles.
-detectTeam.py: Detects the team associated with an article.
-englishArticle.py: Processes English articles.
-extractContent.py: Extracts core content from articles.
-fetchUnprocessedArticles.py: Fetches unprocessed articles.
-germanArticle.py: Processes German articles.
-getImage.py: Retrieves images for articles.
-keyword_extractor.py: Extracts keywords from articles.
-relatedArticles.py: Finds related articles based on keywords.
-runPipeline.py: Runs the entire processing pipeline.
-storeInDB.py: Stores processed articles in the database.
-prompts.yaml: Contains prompts for AI models.
-env: Virtual environment containing dependencies.
-
-getArticles: Contains scripts for fetching news articles.
-
-fetchNews.py: Fetches news articles from various sources.
-postNews.py: Posts news articles to the database.
-tests: Contains test scripts.
-
-test_supabase.py: Tests for Supabase integration.
-LLMSetup.py: Sets up language models for processing articles.
-
-supabase_init.py: Initializes Supabase client for database operations.
-
-requirements.txt: Lists project dependencies.
-
-readme.md: Project documentation.
-
-## Setup
-### ,Prerequisites
-Python 3.12
-Virtual environment
-
-Installation
-
-1. Clone the repository:
-git clone https://github.com/BigSlikTobi/T4LResearch.git
 cd T4LResearch
+```
 
-2. Create and activate a virtual environment:
+#### Create & Activate Virtual Environment:
+```bash
 python3 -m venv env
-source env/bin/activate
+source env/bin/activate  # For Windows use `env\Scripts\activate`
+```
 
-3. Install dependencies:
+#### Install Dependencies:
+```bash
 pip install -r requirements.txt
+```
 
-4. Set up the environment:
-run crawl4ai-setup / crawl4ai-doctor
+#### Environment Setup:
+Run the following to configure Crawl4AI and Playwright:
+```bash
+run crawl4ai-setup  # or crawl4ai-doctor as needed
 python -m playwright install
+```
 
-## Usage
-
-### Fetching News Articles
-To fetch news articles, run:
-python getArticles/fetchNews.py
-
-### Processing Articles
-To process articles, run:
-python createArticles/runPipeline.py
-
-## Configuration
-
-Set your Supabase environment variables in a .env file or using the shell:
-
+#### Supabase Configuration:
+Create a `.env` file or set your environment variables:
+```bash
 export SUPABASE_URL="your-supabase-url"
 export SUPABASE_KEY="your-supabase-key"
+export OPENAI_API_KEY="your-openai-api-key"      # if using OpenAI
+export GEMINI_API_KEY="your-gemini-api-key"      # if using Gemini
+```
+
+## Usage
+### Fetching News Articles
+Run the fetch script to scrape the latest news:
+```bash
+python getArticles/fetchNews.py
+```
+
+### Processing Articles
+After fetching, process and enrich articles by running:
+```bash
+python createArticles/runPipeline.py
+```
+The scripts use advanced LLM setups (both Gemini and OpenAI) for content enrichment as configured in `LLMSetup.py`.
+
+## Configuration
+### Supabase:
+Set your credentials in a `.env` file or via shell environment variables:
+```bash
+export SUPABASE_URL="your-supabase-url"
+export SUPABASE_KEY="your-supabase-key"
+```
+
+### LLM Providers:
+Ensure that the required API keys for OpenAI and Gemini are set:
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+export GEMINI_API_KEY="your-gemini-api-key"
+```
 
 ## Testing
-To run tests, use:
-
+Run the test suite to validate your setup:
+```bash
 pytest tests/
-Contributing
+```
 
-Contributions are welcome! Please submit a pull request or open an issue to discuss your ideas.
+## Contributing
+Contributions are welcome!
 
-ääLicense
+1. Fork the repository
+2. Create a new branch for your feature or bug fix
+3. Submit a pull request for review
+
+Feel free to open an issue if you have any questions or suggestions.
+
+## License
 This project is licensed under the MIT License.
-
