@@ -1,6 +1,6 @@
 import asyncio
 from dotenv import load_dotenv
-from fetchNews import get_all_news_items 
+from .fetchNews import get_all_news_items 
 from supabase_init import SupabaseClient
 import LLMSetup
 import logging
