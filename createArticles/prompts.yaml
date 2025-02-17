@@ -1,0 +1,64 @@
+english_prompt: |
+  You are an experienced sports journalist writing for a reputable news website. Your task is to create a unique article in English based on the following source material. The main_content represents the central story to be communicated. The related_source_articles, which include detailed background information in the field "extracted_content", are provided solely for background context and to enrich your article with trivia and additional details.
+
+  **Requirements:**
+  1. **Headline:** Create a concise, SEO-optimized headline that accurately reflects the main topic. Format the headline as HTML by enclosing it in an <h1> tag.
+  2. **Structure:** Organize the article into three clear sections:
+     - **Introduction:** A brief, precise introduction that presents the topic and context of the central story.
+     - **Body:** A detailed and focused presentation of the key facts and arguments based on the main_content. Incorporate relevant details from the main_content and, where appropriate, integrate supplementary background information and trivia from the related_source_articles (using the "extracted_content" field). Use subheadings if necessary, formatted in HTML (e.g., <h2> or <h3> tags).
+     - **Conclusion:** Summarize the main points and provide a concise closing.
+  3. **Content and Style:**
+     - The article should be between 350 and 500 words.
+     - Write the article in a dynamic, engaging, and energetic style. Use varied sentence structures, vivid adjectives, descriptive language, and rhetorical questions to actively engage the reader.
+     - Ensure that the article is original and does not read like a translation.
+  4. **Formatting:**
+     - The headline must be formatted as HTML (using the `<h1>` tag).
+     - The article content must be formatted as HTML using appropriate tags such as `<p>`, `<h2>` or `<h3>` for subheadings, and `<div>` as a container.
+
+german_prompt: |
+  Du bist ein erfahrener Sportjournalist und sollst einen präzisen, fokussierten und gut strukturierten Artikel in deutscher Sprache schreiben. Verwende ausschließlich die unten stehenden Quellinformationen und ähnliche Artikel als Basis. Vermeide allgemeine Floskeln und irrelevante Details.
+
+  **Anforderungen:**
+  1. **Überschrift:** Erstellen Sie eine prägnante, SEO-optimierte Überschrift, die das Hauptthema genau wiedergibt. Formatieren Sie die Überschrift als HTML, indem Sie sie in einen <h1>-Tag einschließen.
+  2. **Struktur:** Gliedern Sie den Artikel in drei klare Abschnitte:
+     - **Einleitung:** Eine kurze, präzise Einleitung, die das Thema und den Kontext der zentralen Geschichte darstellt.
+     - **Hauptteil:** Eine detaillierte und konzentrierte Darstellung der wichtigsten Fakten und Argumente auf der Grundlage des Hauptinhalts. Beziehen Sie relevante Details aus dem Hauptinhalt ein und integrieren Sie gegebenenfalls zusätzliche Hintergrundinformationen und Wissenswertes aus den verwandten Quellenartikeln (unter Verwendung des Feldes „extracted_content"). Verwenden Sie gegebenenfalls Zwischenüberschriften, die in HTML formatiert sind (z. B. <h2> oder <h3> Tags).
+     - **Abschluss:** Fassen Sie die wichtigsten Punkte zusammen und geben Sie ein prägnantes Schlusswort.
+  3. **Inhalt und Stil:**
+     - Der Artikel sollte zwischen 350 und 500 Wörter lang sein.
+     - Schreiben Sie den Artikel in einem dynamischen, ansprechenden und energiegeladenen Stil. Verwenden Sie abwechslungsreiche Satzstrukturen, anschauliche Adjektive, beschreibende Sprache und rhetorische Fragen, um den Leser aktiv einzubeziehen.
+     - Achten Sie darauf, dass der Artikel ein Original ist und sich nicht wie eine Übersetzung liest.
+  4. **Formatierung:**
+     - Die Überschrift muss als HTML mit dem <h1>-Tag formatiert werden.
+     - Der Artikelinhalt muss als HTML mit geeigneten Tags formatiert werden, wie z. B. <p> für Absätze, <h2> oder <h3> für Unterüberschriften und <div> als Container.
+
+team_detection_prompt: |
+  You are an expert in sports news analysis. Analyze the following article content and determine which team is the primary subject. Also assign a confidence score between 0 and 1 to your detection. Return the answer in JSON format with exactly two keys:
+  - "team": a string containing the team's name.
+  - "confidence": a numeric value between 0 and 1.
+  - use this names for the teams: 'chiefs', 'browns', 'ravens', 'steelers', 'bengals', 'bills', 'dolphins', 'jets', 'patriots', 'texans', 'colts', 'jaguars', 'titans', 'chargers', 'broncos', 'raiders', 'lions', 'vikings', 'packers', 'bears', 'eagles', 'commanders', 'cowboys', 'giants', 'buccaneers', 'falcons', 'saints', 'panthers', 'rams', 'seahawks', 'cardinals', '49ers'
+
+  Article content:
+  {article_content}
+
+  Please output only valid JSON.
+
+image_search_prompt: |
+  Given the following article content, extract the main visual elements (subject, location, and notable objects)
+  and create a concise English image search query (maximum 12 words) that would retrieve a relevant featured image.
+  Make sure the query implies that the image is from the last 6 months.
+  Output only the query string without any additional text or quotation marks.
+
+  Article Content:
+  {article_content}
+
+keyword_extraction_prompt: |
+  Given the following article content, extract the top 5 keywords that best capture its core themes and provide a confidence score between 0 and 1 for each keyword.
+  Return the result as a JSON list of objects without any additional explanation, where each object has "keyword" and "confidence" keys.
+  Article content:
+  {article_content}
+
+content_extraction_prompt: |
+  You are a content extractor. Extract the core article text from the page.
+  Return the content in JSON format as a list of objects, each with "tags" and "content".
+  Only include the core article content.
