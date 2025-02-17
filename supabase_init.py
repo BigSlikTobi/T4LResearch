@@ -1,9 +1,10 @@
+# supabase_init.py
 import os
 import json
 import logging
-from supabase import create_client
+from supabase import create_client, Client  # Import Client
 from urllib.parse import urlparse
-from createArticles.detectTeam import detectTeam
+from createArticles.detectTeam import detectTeam  # Relative import
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,26 +16,25 @@ class SupabaseClient:
             raise EnvironmentError("Supabase credentials are not set in the environment.")
         self.client = create_client(supabase_url, supabase_key)
         self.team_detector = detectTeam()
-    
-    def post_new_source_article_to_supabase(self, data: list) -> None:
-        for item in data:
-            # Use the 'id' key as fallback for 'uniqueName'
-            unique_name = item.get("uniqueName", item.get("id"))
-            publishedAt = item.get("publishedAt", item.get("published_at"))
-            payload = {
-                "uniqueName": unique_name,
-                "source": item["source"],
-                "headline": item["headline"],
-                "href": item["href"],
-                "url": item["url"],
-                "publishedAt": publishedAt,
-                "isProcessed": item.get("isProcessed", False),
-            }
-            try:
-                response = self.client.table("NewsResults").insert([payload]).execute()
-                logging.info(f"Successfully posted: {unique_name}")
-            except Exception as e:
-                logging.error(f"Error posting {unique_name}: {e}")
+
+    def post_new_source_article_to_supabase(self, article: dict) -> None: # Changed to dict
+        # Use the 'id' key as fallback for 'uniqueName'
+        unique_name = article.get("uniqueName", article.get("id"))
+        publishedAt = article.get("publishedAt", article.get("published_at"))
+        payload = {
+            "uniqueName": unique_name,
+            "source": article["source"],
+            "headline": article["headline"],
+            "href": article["href"],
+            "url": article["url"],
+            "publishedAt": publishedAt,
+            "isProcessed": article.get("isProcessed", False),
+        }
+        try:
+            response = self.client.table("NewsResults").insert(payload).execute() # Removed list
+            logging.info(f"Successfully posted: {unique_name}")
+        except Exception as e:
+            logging.error(f"Error posting {unique_name}: {e}")
 
     def create_news_article_record(self, article: dict, english_data: dict,
                                      german_data: dict, image_data: dict) -> int:
@@ -61,9 +61,9 @@ class SupabaseClient:
                 "isHeadline": False,
                 "Team": team_name
             }
-            response = self.client.table("NewsArticle").insert([record_to_insert]).execute()
-            if response and len(response) > 1 and response[1]:
-                new_id = response[1][0].get("id")
+            response = self.client.table("NewsArticle").insert(record_to_insert).execute()  # Removed list here too
+            if response and len(response.data) > 0:  # Access data attribute
+                new_id = response.data[0].get("id") # Access data attribute
                 logging.info(f"Created new record in 'NewsArticle' table with ID: {new_id}")
                 return new_id
             else:
@@ -75,8 +75,14 @@ class SupabaseClient:
 
     def mark_article_as_processed(self, article_id: int) -> None:
         try:
-            self.client.table("NewsResults").update({"isProcessed": True}).eq("id", article_id).execute()
-            logging.info(f"Article ID {article_id} marked as processed.")
+            # Assuming 'article_id' corresponds to the 'uniqueName' in NewsResults
+            response = self.client.table("NewsResults").update({"isProcessed": True}).eq("uniqueName", article_id).execute()
+            if response and response.data: # Check if the response is valid and contains data
+               logging.info(f"Article ID {article_id} marked as processed.")
+            else:
+                logging.warning(f"Article ID {article_id} not found or already processed.")
+
+
         except Exception as e:
             logging.error(f"Error marking article {article_id} as processed: {e}")
 
@@ -91,9 +97,10 @@ if __name__ == "__main__":
     with open("images.json", "r", encoding="utf-8") as f:
         images_data = json.load(f)
     for article in unprocessed_articles:
-        article_id = article["id"]
+        # article_id is now the uniqueName (which should be unique)
+        article_id = article["uniqueName"]
         logging.info(f"Storing data for article ID: {article_id}")
-        str_id = str(article_id)
+        str_id = str(article["id"]) # Keep using the original 'id' for filenames
         english_data = english_articles.get(str_id, {"headline": "", "content": ""})
         german_data = german_articles.get(str_id, {"headline": "", "content": ""})
         image_data = images_data.get(str_id, {
