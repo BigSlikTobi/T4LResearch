@@ -1,5 +1,3 @@
-#TODO: Make Gemin work
-
 import os
 import json
 from pydantic import BaseModel, Field
@@ -14,15 +12,13 @@ import asyncio
 from LLMSetup import initialize_model
 import google.generativeai as genai
 
+# Hardcode the LLM choice here:
+llm_choice = "openai"  # Or "gemini", whichever you want as the default
+
 # Instantiate the models via LLMSetup
-llms = initialize_model("both")
-while True:
-    llm_choice = input("Select LLM (gemini/openai): ").lower()
-    if llm_choice in llms:
-        selected_llm = llms[llm_choice]
-        break
-    else:
-        print("Invalid LLM choice. Please select 'gemini' or 'openai'.")
+# Only initialize the *selected* LLM, not both.
+selected_llm = initialize_model(llm_choice)
+
 
 # LLM configuration based on user's choice
 if llm_choice == "openai":
@@ -39,9 +35,12 @@ elif llm_choice == "gemini": #NOT WORKING AT THE MOMENT!!!
     if not GEMINI_API_KEY:
         raise ValueError("Please set the GEMINI_API_KEY environment variable.")
     genai.configure(api_key=GEMINI_API_KEY)
-    provider = "gemini"
+    provider = "gemini" #This needs to match initialize_model
     api_token = GEMINI_API_KEY
-    gemini_model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-01-21")
+    # gemini_model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-01-21") #Not needed here.
+    #the initialize_model does this.
+else: #Important to add to avoid errors later
+    raise ValueError("Invalid LLM Choice")
 
 print("Setup complete.")
 
@@ -123,3 +122,43 @@ async def get_all_news_items():
 
 if __name__ == "__main__":
     asyncio.run(get_all_news_items())
+
+
+import asyncio
+from dotenv import load_dotenv
+from getArticles.fetchNews import get_all_news_items
+from supabase_init import SupabaseClient #Make sure this file exists and works.
+import LLMSetup
+import logging
+
+logging.basicConfig(level=logging.INFO)
+load_dotenv()
+
+async def main():
+    supabase_client = SupabaseClient()
+     # Initialize LLMs if not already initialized.  Only need to do this *once*.
+    llm_choice = "openai"  # Match the choice in fetchNews.py
+
+    try:
+        llms = LLMSetup.initialize_model(llm_choice)  # Initialize only the selected LLM
+        logging.info("LLMs initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize LLMs: {e}")
+        return
+
+
+    # Obtain news articles using the helper from fetchNews.py
+    news_articles = await get_all_news_items()
+
+    # Post news articles to Supabase one by one
+    for article in news_articles:
+        try:
+            supabase_client.post_new_source_article_to_supabase([article])
+            article_name = article.get("uniqueName", article.get("id", "Unknown"))
+            logging.info(f"Successfully posted article: {article_name}")
+        except Exception as e:
+            article_name = article.get("uniqueName", article.get("id", "Unknown"))
+            logging.error(f"Failed to post article {article_name}: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
