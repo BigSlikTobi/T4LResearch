@@ -1,3 +1,6 @@
+# postNews.py
+
+# Add package support when executing as script
 if __name__ == '__main__' and __package__ is None:
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -32,28 +35,27 @@ def remove_control_chars(s: str) -> str:
     return ''.join(ch for ch in s if not unicodedata.category(ch).startswith('C'))
 
 def build_url_from_parts(parts: urllib.parse.ParseResult) -> str:
-    """Rebuild the URL from its parts, stripping out extra whitespace and control characters."""
+    """Rebuild the URL from its parts, stripping extra whitespace and control characters."""
     scheme = parts.scheme.strip()
     netloc = parts.netloc.strip()
-    # Split the path on slashes, strip each segment, and reassemble
+    # Clean and reassemble the path
     path_segments = [segment.strip() for segment in parts.path.split('/') if segment.strip()]
     path = '/' + '/'.join(path_segments) if path_segments else ''
-    # Process query parameters similarly
+    # Clean query parameters similarly
     query_params = [param.strip() for param in parts.query.split('&') if param.strip()]
     query = '&'.join(query_params)
     fragment = parts.fragment.strip()
     return urllib.parse.urlunparse((scheme, netloc, path, parts.params, query, fragment))
 
 def clean_url(url: str) -> str:
-    """Clean URL by removing control characters and, if running in GitHub Actions, rebuild the URL."""
+    """Clean URL by removing control characters and, if on GitHub Actions, rebuild from its parts."""
     if not url:
         return url
 
-    # Remove all Unicode control characters (including newlines, etc.)
-    url = remove_control_chars(url)
-    url = url.strip()
+    # Remove any Unicode control characters and trim whitespace
+    url = remove_control_chars(url).strip()
 
-    # If running on GitHub Actions, rebuild the URL from parsed parts
+    # If running in GitHub Actions, rebuild the URL from its parsed parts
     if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
         logging.debug("Detected GitHub Actions environment; rebuilding URL from parts.")
         parts = urllib.parse.urlparse(url)
@@ -61,7 +63,7 @@ def clean_url(url: str) -> str:
         logging.debug(f"Rebuilt URL: {rebuilt}")
         return rebuilt
 
-    # Otherwise, do a more standard cleaning for local environments:
+    # Otherwise, perform standard cleaning:
     url = url.replace('\n', '').replace('\r', '')
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
     url = re.sub(r'\s+', '-', url.strip())

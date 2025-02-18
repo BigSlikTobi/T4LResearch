@@ -19,7 +19,7 @@ import asyncio
 # LLMSetup imports
 from LLMSetup import initialize_model
 import google.generativeai as genai
-import re  # Import the regular expression module
+import unicodedata
 
 # Hardcode the LLM choice here:
 llm_choice = "openai"  # Or "gemini", whichever you want as the default
@@ -29,20 +29,18 @@ selected_llm = initialize_model(llm_choice)
 
 # LLM configuration based on user's choice
 if llm_choice == "openai":
-    # OpenAI API setup
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     if not OPENAI_API_KEY:
         raise ValueError("Please set the OPENAI_API_KEY environment variable.")
-    provider = "openai/gpt-4o-mini"  # Or your preferred model
+    provider = "openai/gpt-4o-mini"
     api_token = OPENAI_API_KEY
     OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 elif llm_choice == "gemini":  # NOT WORKING AT THE MOMENT!!!
-    # Gemini Setup
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError("Please set the GEMINI_API_KEY environment variable.")
     genai.configure(api_key=GEMINI_API_KEY)
-    provider = "gemini"  # This needs to match initialize_model
+    provider = "gemini"
     api_token = GEMINI_API_KEY
 else:
     raise ValueError("Invalid LLM Choice")
@@ -55,9 +53,9 @@ print(f"MY URL is {url}")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
-# Define JSON schema
+# Define JSON schema for news items
 class NewsItem(BaseModel):
-    uniqueName: str = Field(..., alias="id", description="Unique ID/use the headline and convert to lowercase with hyphens")
+    uniqueName: str = Field(..., alias="id", description="Unique ID (lowercase with hyphens)")
     source: str = Field(..., description="Website domain or brand name")
     headline: str = Field(..., description="Extracted headline text")
     href: str = Field(..., description="Relative URL (href) from the anchor tag")
@@ -65,30 +63,45 @@ class NewsItem(BaseModel):
     publishedAt: str = Field(..., alias="published_at", description="Publication date in YYYY-MM-DD format")
     isProcessed: bool = Field(False, description="Flag indicating if the item has been processed")
 
+def remove_control_chars(s: str) -> str:
+    """Remove all Unicode control characters from a string."""
+    return ''.join(ch for ch in s if not unicodedata.category(ch).startswith('C'))
+
+def build_url_from_parts(parts: urllib.parse.ParseResult) -> str:
+    """Rebuild the URL from its parts, stripping extra whitespace and control characters."""
+    scheme = parts.scheme.strip()
+    netloc = parts.netloc.strip()
+    path_segments = [segment.strip() for segment in parts.path.split('/') if segment.strip()]
+    path = '/' + '/'.join(path_segments) if path_segments else ''
+    query_params = [param.strip() for param in parts.query.split('&') if param.strip()]
+    query = '&'.join(query_params)
+    fragment = parts.fragment.strip()
+    return urllib.parse.urlunparse((scheme, netloc, path, parts.params, query, fragment))
+
 def clean_url_for_extraction(url: str) -> str:
-    """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
+    """Clean URL by removing control characters and normalizing whitespace.
+       Uses URL rebuilding if running on GitHub Actions."""
     if not url:
         return url
 
-    # Immediately remove newline and carriage return characters
-    url = url.replace('\n', '').replace('\r', '')
+    # Remove Unicode control characters and trim
+    url = remove_control_chars(url).strip()
 
-    # Remove all non-ASCII characters (equivalent to JavaScript's /[^ -~]+/g)
+    if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+        parts = urllib.parse.urlparse(url)
+        rebuilt = build_url_from_parts(parts)
+        return rebuilt
+
+    # Standard cleaning for local environments:
+    url = url.replace('\n', '').replace('\r', '')
     url = re.sub(r'[^ -~]+', '', url)
-    
-    # Remove all non-printable characters (ASCII codes 0-31 and 127)
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
-    
-    # Replace any sequence of whitespace characters with a single hyphen
     url = re.sub(r'\s+', '-', url.strip())
-    
     try:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
         query = urllib.parse.quote_plus(parts.query, safe='=&')
-        
-        # Reconstruct the URL
-        clean_url = urllib.parse.urlunparse((
+        clean_url_result = urllib.parse.urlunparse((
             parts.scheme,
             parts.netloc,
             path,
@@ -96,7 +109,7 @@ def clean_url_for_extraction(url: str) -> str:
             query,
             parts.fragment
         ))
-        return clean_url
+        return clean_url_result
     except Exception as e:
         print(f"Error cleaning URL {url}: {e}")
         return url
@@ -111,18 +124,16 @@ async def scrape_sports_news(
 ):
     """Reusable sports news scraper for any website"""
 
-    # Dynamic instruction with URL handling
     instruction = f"""
     Extract sports news articles from {url} with these rules:
     1. Extract ONLY the HREF attribute from anchor tags for the link field
     2. DO NOT prepend any base URL to the href field
     3. Source should be the website's domain (e.g. "nfl.com")
-    4. Dates older than {time_period} should be excluded
+    4. Exclude dates older than {time_period}
     5. Create IDs from headlines (lowercase, hyphens, no special chars)
     6. Return max {max_items} most recent items
     """
 
-    # Configure extraction strategy
     strategy = LLMExtractionStrategy(
         provider=provider,
         api_token=api_token,
@@ -139,26 +150,22 @@ async def scrape_sports_news(
             extraction_strategy=strategy,
             cache_mode=CacheMode.DISABLED
         )
-    # Decode using UTF-8, handling potential errors
     try:
         decoded_content = result.extracted_content.encode('latin-1', 'replace').decode('utf-8', 'replace')
     except Exception as e:
         print(f"Decoding error: {e}")
-        decoded_content = result.extracted_content  # Fallback to original if decoding fails
+        decoded_content = result.extracted_content
 
-    # Clean the extracted data
     extracted_data = json.loads(decoded_content)
     cleaned_data = []
     for item in extracted_data:
-        # Clean the URL with enhanced cleaning:
+        # Clean URL for extraction using our enhanced logic:
         item["url"] = clean_url_for_extraction(item["url"])
-
-        # Clean ID:
+        # Clean ID: lower-case, replace spaces with hyphens, remove non-alphanumeric/hyphen characters
         item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
         cleaned_data.append(item)
     return cleaned_data
 
-# New function to obtain and combine news items from each site
 async def get_all_news_items():
     websites = [
         {"name": "nfl", "url": "https://www.nfl.com/news/", "base_url": "https://www.nfl.com", "execute": True},
@@ -194,20 +201,16 @@ load_dotenv()
 
 async def main():
     supabase_client = SupabaseClient()
-    # Initialize LLMs if not already initialized. Only need to do this once.
     llm_choice = "openai"  # Match the choice in fetchNews.py
 
     try:
-        llms = LLMSetup.initialize_model(llm_choice)  # Initialize only the selected LLM
+        llms = LLMSetup.initialize_model(llm_choice)
         logging.info("LLMs initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize LLMs: {e}")
         return
 
-    # Obtain news articles using the helper from fetchNews.py
     news_articles = await get_all_news_items()
-
-    # Post news articles to Supabase one by one
     for article in news_articles:
         try:
             supabase_client.post_new_source_article_to_supabase([article])
