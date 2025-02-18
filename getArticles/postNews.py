@@ -1,3 +1,11 @@
+# postNews.py
+
+# Add package support when executing as script
+if __name__ == '__main__' and __package__ is None:
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    __package__ = 'getArticles'
+
 import asyncio
 import logging
 import os
@@ -13,24 +21,6 @@ import LLMSetup
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
-def get_env_var(name: str) -> str:
-    """Load an environment variable and strip any extraneous whitespace/newlines."""
-    value = os.getenv(name, "")
-    value_stripped = value.strip()
-    if not value_stripped:
-        logging.error(f"Environment variable {name} is not set or is empty after stripping!")
-    else:
-        # For debugging purposes, we log that the variable was loaded.
-        # We avoid printing the full value to prevent leaking sensitive information.
-        logging.info(f"Loaded {name} with length {len(value_stripped)}")
-    return value_stripped
-
-# Load and sanitize secrets/environment variables
-SUPABASE_URL = get_env_var("SUPABASE_URL")
-SUPABASE_KEY = get_env_var("SUPABASE_KEY")
-OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
-GEMINI_API_KEY = get_env_var("GEMINI_API_KEY")
-
 def is_valid_url(url: str) -> bool:
     """Validate if a URL is properly formatted."""
     try:
@@ -43,9 +33,14 @@ def clean_url(url: str) -> str:
     """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
     if not url:
         return url
+
+    # Immediately remove newline and carriage return characters
+    url = url.replace('\n', '').replace('\r', '')
+
     # Remove non-printable characters (ASCII codes 0-31 and 127)
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
-    # Replace any sequence of whitespace characters (including newlines) with a single hyphen
+
+    # Replace any sequence of whitespace characters with a single hyphen
     url = re.sub(r'\s+', '-', url.strip())
     
     try:
@@ -83,12 +78,12 @@ async def main():
         try:
             if 'url' in article:
                 cleaned = clean_url(article['url'])
-                # Remove any lingering newline chars (extra safety)
+                # Extra safety: remove any lingering newline or carriage return characters
                 cleaned = cleaned.replace('\n', '').replace('\r', '')
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL found: {cleaned}")
                     continue
-                # Additional fallback cleaning
+                # Fallback cleaning: ensure only printable characters remain
                 cleaned = re.sub(r'[^\x20-\x7E]+', '', cleaned)
                 article['url'] = cleaned
 

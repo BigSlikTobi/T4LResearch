@@ -1,3 +1,5 @@
+# fetchNews.py
+
 import os
 import sys
 # Add parent directory to PYTHONPATH to import modules from root
@@ -19,22 +21,16 @@ from LLMSetup import initialize_model
 import google.generativeai as genai
 import re  # Import the regular expression module
 
-# Function to load and strip environment variables
-def get_env_var(name: str) -> str:
-    value = os.getenv(name, "")
-    return value.strip()
-
 # Hardcode the LLM choice here:
 llm_choice = "openai"  # Or "gemini", whichever you want as the default
 
-# Instantiate the models via LLMSetup
-# Only initialize the *selected* LLM, not both.
+# Instantiate the models via LLMSetup (only the selected LLM)
 selected_llm = initialize_model(llm_choice)
 
 # LLM configuration based on user's choice
 if llm_choice == "openai":
     # OpenAI API setup
-    OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     if not OPENAI_API_KEY:
         raise ValueError("Please set the OPENAI_API_KEY environment variable.")
     provider = "openai/gpt-4o-mini"  # Or your preferred model
@@ -42,21 +38,21 @@ if llm_choice == "openai":
     OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 elif llm_choice == "gemini":  # NOT WORKING AT THE MOMENT!!!
     # Gemini Setup
-    GEMINI_API_KEY = get_env_var("GEMINI_API_KEY")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError("Please set the GEMINI_API_KEY environment variable.")
     genai.configure(api_key=GEMINI_API_KEY)
     provider = "gemini"  # This needs to match initialize_model
     api_token = GEMINI_API_KEY
-else:  # Important to add to avoid errors later
+else:
     raise ValueError("Invalid LLM Choice")
 
 print("Setup complete.")
 
-# Setup Supabase with stripped environment variables
-url: str = get_env_var("SUPABASE_URL")
+# Setup Supabase
+url: str = os.environ.get("SUPABASE_URL")
 print(f"MY URL is {url}")
-key: str = get_env_var("SUPABASE_KEY")
+key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 # Define JSON schema
@@ -73,17 +69,19 @@ def clean_url_for_extraction(url: str) -> str:
     """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
     if not url:
         return url
-    
+
+    # Immediately remove newline and carriage return characters
+    url = url.replace('\n', '').replace('\r', '')
+
     # Remove all non-ASCII characters (equivalent to JavaScript's /[^ -~]+/g)
     url = re.sub(r'[^ -~]+', '', url)
     
     # Remove all non-printable characters (ASCII codes 0-31 and 127)
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
     
-    # Replace any sequence of whitespace characters (including newlines) with a single hyphen
+    # Replace any sequence of whitespace characters with a single hyphen
     url = re.sub(r'\s+', '-', url.strip())
     
-    # Encode URL properly while preserving structure
     try:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
@@ -149,7 +147,7 @@ async def scrape_sports_news(
         decoded_content = result.extracted_content  # Fallback to original if decoding fails
 
     # Clean the extracted data
-    extracted_data = json.loads(decoded_content)  # Use decoded content
+    extracted_data = json.loads(decoded_content)
     cleaned_data = []
     for item in extracted_data:
         # Clean the URL with enhanced cleaning:
@@ -182,6 +180,7 @@ async def get_all_news_items():
 if __name__ == "__main__":
     asyncio.run(get_all_news_items())
 
+
 # Additional section for posting articles (if run as a standalone script)
 import asyncio
 from dotenv import load_dotenv
@@ -195,7 +194,7 @@ load_dotenv()
 
 async def main():
     supabase_client = SupabaseClient()
-    # Initialize LLMs if not already initialized. Only need to do this *once*.
+    # Initialize LLMs if not already initialized. Only need to do this once.
     llm_choice = "openai"  # Match the choice in fetchNews.py
 
     try:
