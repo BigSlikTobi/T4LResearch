@@ -22,10 +22,16 @@ jobs:
       with:
         ref: main  # Explicitly checkout main branch
     
+    - name: Print LC_CTYPE
+      run: |
+        echo "LC_CTYPE=$LC_CTYPE"
+        
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
+
+    #LC_CTYPE
         
     - name: Install dependencies
       run: |
