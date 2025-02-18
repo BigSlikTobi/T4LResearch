@@ -72,6 +72,9 @@ def clean_url_for_extraction(url: str) -> str:
     if not url:
         return url
     
+    # Remove all non-ASCII characters (equivalent to JavaScript's /[^ -~]+/g)
+    url = re.sub(r'[^ -~]+', '', url)
+    
     # Remove all non-printable characters (ASCII codes 0-31 and 127)
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
     
