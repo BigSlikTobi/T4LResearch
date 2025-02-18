@@ -1,3 +1,4 @@
+# Add package support when executing as script
 if __name__ == '__main__' and __package__ is None:
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -93,6 +94,22 @@ async def main():
 
     # Obtain news articles using the helper from fetchNews.py
     news_articles = await get_all_news_items()
+    
+    # Check for debugging mode; if DEBUG_ASCII is true, print URL details instead of posting.
+    DEBUG_ASCII = os.getenv("DEBUG_ASCII", "").lower() == "true"
+    if DEBUG_ASCII:
+        logging.info("DEBUG_ASCII mode enabled. Printing ASCII codes for each article URL:")
+        for article in news_articles:
+            if 'url' in article:
+                raw_url = article['url']
+                cleaned = clean_url(raw_url)
+                logging.info(f"Article '{article.get('uniqueName', article.get('id', 'Unknown'))}':")
+                logging.info(f"  Raw URL: {repr(raw_url)}")
+                logging.info(f"  Cleaned URL: {repr(cleaned)}")
+                logging.info(f"  ASCII codes: {[ord(c) for c in cleaned]}")
+        return  # Skip posting
+
+    # Otherwise, post the articles to Supabase
     for article in news_articles:
         try:
             if 'url' in article:
@@ -103,9 +120,9 @@ async def main():
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL after cleaning: {cleaned}")
                     continue
-                # Additional logging before posting:
-                logging.debug(f"Article URL before posting: {repr(cleaned)}")
-                logging.debug(f"Article URL ASCII codes: {[ord(c) for c in cleaned]}")
+                # Additional logging right before posting:
+                logging.debug(f"Final URL before posting: {repr(cleaned)}")
+                logging.debug(f"Final URL ASCII codes: {[ord(c) for c in cleaned]}")
                 article['url'] = cleaned
 
             result = supabase_client.post_new_source_article_to_supabase(article)
