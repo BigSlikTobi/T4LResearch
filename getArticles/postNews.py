@@ -6,7 +6,7 @@ if __name__ == '__main__' and __package__ is None:
 
 import asyncio
 from dotenv import load_dotenv
-from fetchNews import get_all_news_items  # Using direct import after updating sys.path
+from .fetchNews import get_all_news_items  # Using relative import
 from supabase_init import SupabaseClient
 import LLMSetup
 import logging
