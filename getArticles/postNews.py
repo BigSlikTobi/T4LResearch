@@ -71,6 +71,8 @@ async def main():
         try:
             if 'url' in article:
                 cleaned = clean_url(article['url'])
+                # Remove any lingering newline chars
+                cleaned = cleaned.replace('\n', '').replace('\r', '')
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL found: {cleaned}")
                     continue
