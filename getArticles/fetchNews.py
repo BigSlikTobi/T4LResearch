@@ -68,15 +68,15 @@ class NewsItem(BaseModel):
     isProcessed: bool = Field(False, description="Flag indicating if the item has been processed")
 
 def clean_url_for_extraction(url: str) -> str:
-    """Clean URL by removing non-printable characters and properly encoding."""
+    """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
     if not url:
         return url
     
-    # Remove all non-printable characters
-    url = ''.join(char for char in url if ord(char) >= 32)
+    # Remove all non-printable characters (ASCII codes 0-31 and 127)
+    url = ''.join(char for char in url if 32 <= ord(char) <= 126)
     
-    # Normalize spaces and remove unwanted characters
-    url = url.strip().replace('\n', '').replace('\r', '').replace(' ', '-')
+    # Replace any sequence of whitespace characters (including newlines) with a single hyphen
+    url = re.sub(r'\s+', '-', url.strip())
     
     # Encode URL properly while preserving structure
     try:
@@ -94,8 +94,8 @@ def clean_url_for_extraction(url: str) -> str:
             parts.fragment
         ))
         return clean_url
-    except Exception:
-        # If URL parsing fails, just return the basic cleaned URL
+    except Exception as e:
+        print(f"Error cleaning URL {url}: {e}")
         return url
 
 
