@@ -1,10 +1,18 @@
 import os
+import sys
 import json
 import asyncio
+
+# Add parent directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 from crawl4ai import AsyncWebCrawler, CacheMode
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
-from fetchUnprocessedArticles import get_unprocessed_articles
-from ..LLMSetup import init_openai, initialize_model
+from createArticles.fetchUnprocessedArticles import get_unprocessed_articles
+from LLMSetup import init_openai, initialize_model
 
 # Initialize OpenAI model
 model_config = initialize_model("openai")

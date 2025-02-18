@@ -3,7 +3,10 @@ import subprocess
 import sys
 
 # Add parent directory to path to import LLMSetup
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from LLMSetup import initialize_model
 
 def run_pipeline():
@@ -11,15 +14,21 @@ def run_pipeline():
     print("Initializing LLM models...")
     models = initialize_model("both")
     
+    # Set environment for subprocess calls
+    env = os.environ.copy()
+    env["PYTHONPATH"] = parent_dir + os.pathsep + env.get("PYTHONPATH", "")
+    
+    # Change to the script directory for running the pipeline
+    os.chdir(current_dir)
+    
     # Run the modules in sequence
-    subprocess.run(["python", "fetchUnprocessedArticles.py"], check=True)
-    subprocess.run(["python", "extractContent.py"], check=True)
-    subprocess.run(["python", "relatedArticles.py"], check=True)
-    subprocess.run(["python", "englishArticle.py"], check=True)
-    subprocess.run(["python", "germanArticle.py"], check=True)
-    subprocess.run(["python", "getImage.py"], check=True)
-    # detectTeam is already used within storeInDB, so no separate call
-    subprocess.run(["python", "storeInDB.py"], check=True)
+    subprocess.run(["python", "fetchUnprocessedArticles.py"], check=True, env=env)
+    subprocess.run(["python", "extractContent.py"], check=True, env=env)
+    subprocess.run(["python", "relatedArticles.py"], check=True, env=env)
+    subprocess.run(["python", "englishArticle.py"], check=True, env=env)
+    subprocess.run(["python", "germanArticle.py"], check=True, env=env)
+    subprocess.run(["python", "getImage.py"], check=True, env=env)
+    subprocess.run(["python", "storeInDB.py"], check=True, env=env)
     
     # Remove generated JSON files
     for json_file in [
