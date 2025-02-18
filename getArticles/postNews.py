@@ -46,7 +46,8 @@ def build_url_from_parts(parts: urllib.parse.ParseResult) -> str:
     return urllib.parse.urlunparse((scheme, netloc, path, parts.params, query, fragment))
 
 def clean_url(url: str) -> str:
-    """Clean URL by removing control characters and, if on GitHub Actions, rebuild the URL."""
+    """Clean URL by removing control characters and, if on GitHub Actions, rebuild the URL.
+       Finally, force percent-encoding of the entire URL to ensure no stray control characters remain."""
     if not url:
         return url
 
@@ -57,30 +58,32 @@ def clean_url(url: str) -> str:
     if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
         logging.debug("Detected GitHub Actions environment; rebuilding URL from parts.")
         parts = urllib.parse.urlparse(url)
-        rebuilt = build_url_from_parts(parts)
-        logging.debug(f"Rebuilt URL: {rebuilt}")
-        return rebuilt
+        url = build_url_from_parts(parts)
+        logging.debug(f"Rebuilt URL: {url}")
+    else:
+        # Otherwise, perform standard cleaning:
+        url = url.replace('\n', '').replace('\r', '')
+        url = ''.join(char for char in url if 32 <= ord(char) <= 126)
+        url = re.sub(r'\s+', '-', url.strip())
+        try:
+            parts = urllib.parse.urlparse(url)
+            path = urllib.parse.quote(parts.path)
+            query = urllib.parse.quote_plus(parts.query, safe='=&')
+            url = urllib.parse.urlunparse((
+                parts.scheme,
+                parts.netloc,
+                path,
+                parts.params,
+                query,
+                parts.fragment
+            ))
+        except Exception as e:
+            logging.warning(f"Error cleaning URL {url}: {e}")
+            return url
 
-    # Otherwise, perform standard cleaning:
-    url = url.replace('\n', '').replace('\r', '')
-    url = ''.join(char for char in url if 32 <= ord(char) <= 126)
-    url = re.sub(r'\s+', '-', url.strip())
-    try:
-        parts = urllib.parse.urlparse(url)
-        path = urllib.parse.quote(parts.path)
-        query = urllib.parse.quote_plus(parts.query, safe='=&')
-        clean_url_result = urllib.parse.urlunparse((
-            parts.scheme,
-            parts.netloc,
-            path,
-            parts.params,
-            query,
-            parts.fragment
-        ))
-        return clean_url_result if is_valid_url(clean_url_result) else url
-    except Exception as e:
-        logging.warning(f"Error cleaning URL {url}: {e}")
-        return url
+    # Final forced percent-encoding to ensure no non-printable characters remain
+    final_url = urllib.parse.quote(url, safe=":/?&=%#")
+    return final_url
 
 async def main():
     supabase_client = SupabaseClient()
@@ -95,7 +98,7 @@ async def main():
     # Obtain news articles using the helper from fetchNews.py
     news_articles = await get_all_news_items()
     
-    # Check for debugging mode; if DEBUG_ASCII is true, print URL details instead of posting.
+    # If DEBUG_ASCII mode is enabled, print ASCII codes and skip posting
     DEBUG_ASCII = os.getenv("DEBUG_ASCII", "").lower() == "true"
     if DEBUG_ASCII:
         logging.info("DEBUG_ASCII mode enabled. Printing ASCII codes for each article URL:")
