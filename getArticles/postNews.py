@@ -1,22 +1,35 @@
-# Add package support when executing as script
-if __name__ == '__main__' and __package__ is None:
-    import sys, os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    __package__ = 'getArticles'
-
 import asyncio
+import logging
+import os
+import re
+import urllib.parse
+from urllib.parse import urlparse
+
 from dotenv import load_dotenv
 from .fetchNews import get_all_news_items  # Using relative import
 from supabase_init import SupabaseClient
 import LLMSetup
-import logging
-import re
-import urllib.parse
-from urllib.parse import urlparse
-import os
 
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
+
+def get_env_var(name: str) -> str:
+    """Load an environment variable and strip any extraneous whitespace/newlines."""
+    value = os.getenv(name, "")
+    value_stripped = value.strip()
+    if not value_stripped:
+        logging.error(f"Environment variable {name} is not set or is empty after stripping!")
+    else:
+        # For debugging purposes, we log that the variable was loaded.
+        # We avoid printing the full value to prevent leaking sensitive information.
+        logging.info(f"Loaded {name} with length {len(value_stripped)}")
+    return value_stripped
+
+# Load and sanitize secrets/environment variables
+SUPABASE_URL = get_env_var("SUPABASE_URL")
+SUPABASE_KEY = get_env_var("SUPABASE_KEY")
+OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
+GEMINI_API_KEY = get_env_var("GEMINI_API_KEY")
 
 def is_valid_url(url: str) -> bool:
     """Validate if a URL is properly formatted."""
@@ -35,7 +48,6 @@ def clean_url(url: str) -> str:
     # Replace any sequence of whitespace characters (including newlines) with a single hyphen
     url = re.sub(r'\s+', '-', url.strip())
     
-    # Encode URL parts to preserve structure
     try:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
@@ -64,14 +76,14 @@ async def main():
     except Exception as e:
         logging.error(f"Failed to initialize LLMs: {e}")
         return
-    
+
     # Obtain news articles using the helper from fetchNews.py
     news_articles = await get_all_news_items()
     for article in news_articles:
         try:
             if 'url' in article:
                 cleaned = clean_url(article['url'])
-                # Remove any lingering newline chars
+                # Remove any lingering newline chars (extra safety)
                 cleaned = cleaned.replace('\n', '').replace('\r', '')
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL found: {cleaned}")
@@ -79,7 +91,7 @@ async def main():
                 # Additional fallback cleaning
                 cleaned = re.sub(r'[^\x20-\x7E]+', '', cleaned)
                 article['url'] = cleaned
-            
+
             result = supabase_client.post_new_source_article_to_supabase(article)
             article_name = article.get("uniqueName", article.get("id", "Unknown"))
             logging.info(f"Successfully posted article: {article_name}")
@@ -90,4 +102,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

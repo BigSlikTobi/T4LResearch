@@ -17,7 +17,12 @@ import asyncio
 # LLMSetup imports
 from LLMSetup import initialize_model
 import google.generativeai as genai
-import re #Import the regular expression module
+import re  # Import the regular expression module
+
+# Function to load and strip environment variables
+def get_env_var(name: str) -> str:
+    value = os.getenv(name, "")
+    return value.strip()
 
 # Hardcode the LLM choice here:
 llm_choice = "openai"  # Or "gemini", whichever you want as the default
@@ -26,35 +31,32 @@ llm_choice = "openai"  # Or "gemini", whichever you want as the default
 # Only initialize the *selected* LLM, not both.
 selected_llm = initialize_model(llm_choice)
 
-
 # LLM configuration based on user's choice
 if llm_choice == "openai":
     # OpenAI API setup
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY = get_env_var("OPENAI_API_KEY")
     if not OPENAI_API_KEY:
         raise ValueError("Please set the OPENAI_API_KEY environment variable.")
     provider = "openai/gpt-4o-mini"  # Or your preferred model
     api_token = OPENAI_API_KEY
     OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-elif llm_choice == "gemini": #NOT WORKING AT THE MOMENT!!!
+elif llm_choice == "gemini":  # NOT WORKING AT THE MOMENT!!!
     # Gemini Setup
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    GEMINI_API_KEY = get_env_var("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
         raise ValueError("Please set the GEMINI_API_KEY environment variable.")
     genai.configure(api_key=GEMINI_API_KEY)
-    provider = "gemini" #This needs to match initialize_model
+    provider = "gemini"  # This needs to match initialize_model
     api_token = GEMINI_API_KEY
-    # gemini_model = genai.GenerativeModel("models/gemini-2.0-flash-thinking-exp-01-21") #Not needed here.
-    #the initialize_model does this.
-else: #Important to add to avoid errors later
+else:  # Important to add to avoid errors later
     raise ValueError("Invalid LLM Choice")
 
 print("Setup complete.")
 
-# Setup Supabase
-url: str = os.environ.get("SUPABASE_URL")
+# Setup Supabase with stripped environment variables
+url: str = get_env_var("SUPABASE_URL")
 print(f"MY URL is {url}")
-key: str = os.environ.get("SUPABASE_KEY")
+key: str = get_env_var("SUPABASE_KEY")
 supabase: Client = create_client(url, key)
 
 # Define JSON schema
@@ -101,10 +103,9 @@ def clean_url_for_extraction(url: str) -> str:
         print(f"Error cleaning URL {url}: {e}")
         return url
 
-
 # Define the scraper function
 async def scrape_sports_news(
-url: str,
+    url: str,
     base_url: str,
     schema: Type[BaseModel] = NewsItem,
     max_items: int = 10,
@@ -112,7 +113,7 @@ url: str,
 ):
     """Reusable sports news scraper for any website"""
 
-    # 2. Dynamic instruction with URL handling
+    # Dynamic instruction with URL handling
     instruction = f"""
     Extract sports news articles from {url} with these rules:
     1. Extract ONLY the HREF attribute from anchor tags for the link field
@@ -123,7 +124,7 @@ url: str,
     6. Return max {max_items} most recent items
     """
 
-    # 3. Configure extraction strategy
+    # Configure extraction strategy
     strategy = LLMExtractionStrategy(
         provider=provider,
         api_token=api_token,
@@ -145,7 +146,7 @@ url: str,
         decoded_content = result.extracted_content.encode('latin-1', 'replace').decode('utf-8', 'replace')
     except Exception as e:
         print(f"Decoding error: {e}")
-        decoded_content = result.extracted_content # Fallback to original if decoding fails
+        decoded_content = result.extracted_content  # Fallback to original if decoding fails
 
     # Clean the extracted data
     extracted_data = json.loads(decoded_content)  # Use decoded content
@@ -181,11 +182,11 @@ async def get_all_news_items():
 if __name__ == "__main__":
     asyncio.run(get_all_news_items())
 
-
+# Additional section for posting articles (if run as a standalone script)
 import asyncio
 from dotenv import load_dotenv
 from getArticles.fetchNews import get_all_news_items
-from supabase_init import SupabaseClient #Make sure this file exists and works.
+from supabase_init import SupabaseClient  # Make sure this file exists and works.
 import LLMSetup
 import logging
 
@@ -194,7 +195,7 @@ load_dotenv()
 
 async def main():
     supabase_client = SupabaseClient()
-     # Initialize LLMs if not already initialized.  Only need to do this *once*.
+    # Initialize LLMs if not already initialized. Only need to do this *once*.
     llm_choice = "openai"  # Match the choice in fetchNews.py
 
     try:
@@ -203,7 +204,6 @@ async def main():
     except Exception as e:
         logging.error(f"Failed to initialize LLMs: {e}")
         return
-
 
     # Obtain news articles using the helper from fetchNews.py
     news_articles = await get_all_news_items()
