@@ -1,6 +1,3 @@
-# postNews.py
-
-# Add package support when executing as script
 if __name__ == '__main__' and __package__ is None:
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -12,6 +9,7 @@ import os
 import re
 import urllib.parse
 from urllib.parse import urlparse
+import unicodedata
 
 from dotenv import load_dotenv
 from .fetchNews import get_all_news_items  # Using relative import
@@ -29,25 +27,48 @@ def is_valid_url(url: str) -> bool:
     except Exception:
         return False
 
+def remove_control_chars(s: str) -> str:
+    """Remove all Unicode control characters from a string."""
+    return ''.join(ch for ch in s if not unicodedata.category(ch).startswith('C'))
+
+def build_url_from_parts(parts: urllib.parse.ParseResult) -> str:
+    """Rebuild the URL from its parts, stripping out extra whitespace and control characters."""
+    scheme = parts.scheme.strip()
+    netloc = parts.netloc.strip()
+    # Split the path on slashes, strip each segment, and reassemble
+    path_segments = [segment.strip() for segment in parts.path.split('/') if segment.strip()]
+    path = '/' + '/'.join(path_segments) if path_segments else ''
+    # Process query parameters similarly
+    query_params = [param.strip() for param in parts.query.split('&') if param.strip()]
+    query = '&'.join(query_params)
+    fragment = parts.fragment.strip()
+    return urllib.parse.urlunparse((scheme, netloc, path, parts.params, query, fragment))
+
 def clean_url(url: str) -> str:
-    """Clean URL by removing non-printable characters and normalizing whitespace into hyphens."""
+    """Clean URL by removing control characters and, if running in GitHub Actions, rebuild the URL."""
     if not url:
         return url
 
-    # Immediately remove newline and carriage return characters
+    # Remove all Unicode control characters (including newlines, etc.)
+    url = remove_control_chars(url)
+    url = url.strip()
+
+    # If running on GitHub Actions, rebuild the URL from parsed parts
+    if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+        logging.debug("Detected GitHub Actions environment; rebuilding URL from parts.")
+        parts = urllib.parse.urlparse(url)
+        rebuilt = build_url_from_parts(parts)
+        logging.debug(f"Rebuilt URL: {rebuilt}")
+        return rebuilt
+
+    # Otherwise, do a more standard cleaning for local environments:
     url = url.replace('\n', '').replace('\r', '')
-
-    # Remove non-printable characters (ASCII codes 0-31 and 127)
     url = ''.join(char for char in url if 32 <= ord(char) <= 126)
-
-    # Replace any sequence of whitespace characters with a single hyphen
     url = re.sub(r'\s+', '-', url.strip())
-    
     try:
         parts = urllib.parse.urlparse(url)
         path = urllib.parse.quote(parts.path)
         query = urllib.parse.quote_plus(parts.query, safe='=&')
-
         clean_url_result = urllib.parse.urlunparse((
             parts.scheme,
             parts.netloc,
@@ -56,7 +77,6 @@ def clean_url(url: str) -> str:
             query,
             parts.fragment
         ))
-
         return clean_url_result if is_valid_url(clean_url_result) else url
     except Exception as e:
         logging.warning(f"Error cleaning URL {url}: {e}")
@@ -79,21 +99,11 @@ async def main():
             if 'url' in article:
                 raw_url = article['url']
                 logging.debug(f"Raw URL: {repr(raw_url)}")
-                logging.debug(f"Raw URL ASCII codes: {[ord(c) for c in raw_url]}")
-
                 cleaned = clean_url(raw_url)
-                # Extra safety: remove any lingering newline or carriage return characters
-                cleaned = cleaned.replace('\n', '').replace('\r', '')
-
                 logging.debug(f"Cleaned URL: {repr(cleaned)}")
-                logging.debug(f"Cleaned URL ASCII codes: {[ord(c) for c in cleaned]}")
-
                 if not is_valid_url(cleaned):
-                    logging.warning(f"Invalid URL found after cleaning: {cleaned}")
+                    logging.warning(f"Invalid URL after cleaning: {cleaned}")
                     continue
-
-                # Fallback cleaning: ensure only printable characters remain
-                cleaned = re.sub(r'[^\x20-\x7E]+', '', cleaned)
                 article['url'] = cleaned
 
             result = supabase_client.post_new_source_article_to_supabase(article)
