@@ -1,6 +1,3 @@
-# postNews.py
-
-# Add package support when executing as script
 if __name__ == '__main__' and __package__ is None:
     import sys, os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -48,14 +45,14 @@ def build_url_from_parts(parts: urllib.parse.ParseResult) -> str:
     return urllib.parse.urlunparse((scheme, netloc, path, parts.params, query, fragment))
 
 def clean_url(url: str) -> str:
-    """Clean URL by removing control characters and, if on GitHub Actions, rebuild from its parts."""
+    """Clean URL by removing control characters and, if on GitHub Actions, rebuild the URL."""
     if not url:
         return url
 
-    # Remove any Unicode control characters and trim whitespace
+    # Remove all Unicode control characters and trim whitespace
     url = remove_control_chars(url).strip()
 
-    # If running in GitHub Actions, rebuild the URL from its parsed parts
+    # If running in GitHub Actions, rebuild the URL from parsed parts
     if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
         logging.debug("Detected GitHub Actions environment; rebuilding URL from parts.")
         parts = urllib.parse.urlparse(url)
@@ -106,6 +103,9 @@ async def main():
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL after cleaning: {cleaned}")
                     continue
+                # Additional logging before posting:
+                logging.debug(f"Article URL before posting: {repr(cleaned)}")
+                logging.debug(f"Article URL ASCII codes: {[ord(c) for c in cleaned]}")
                 article['url'] = cleaned
 
             result = supabase_client.post_new_source_article_to_supabase(article)
