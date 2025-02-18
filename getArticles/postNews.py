@@ -74,6 +74,8 @@ async def main():
                 if not is_valid_url(cleaned):
                     logging.warning(f"Invalid URL found: {cleaned}")
                     continue
+                # Additional fallback cleaning
+                cleaned = re.sub(r'[^\x20-\x7E]+', '', cleaned)
                 article['url'] = cleaned
             
             result = supabase_client.post_new_source_article_to_supabase(article)
