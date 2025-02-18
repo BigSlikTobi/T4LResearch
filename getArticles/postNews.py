@@ -18,7 +18,7 @@ from .fetchNews import get_all_news_items  # Using relative import
 from supabase_init import SupabaseClient
 import LLMSetup
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 def is_valid_url(url: str) -> bool:
@@ -77,12 +77,21 @@ async def main():
     for article in news_articles:
         try:
             if 'url' in article:
-                cleaned = clean_url(article['url'])
+                raw_url = article['url']
+                logging.debug(f"Raw URL: {repr(raw_url)}")
+                logging.debug(f"Raw URL ASCII codes: {[ord(c) for c in raw_url]}")
+
+                cleaned = clean_url(raw_url)
                 # Extra safety: remove any lingering newline or carriage return characters
                 cleaned = cleaned.replace('\n', '').replace('\r', '')
+
+                logging.debug(f"Cleaned URL: {repr(cleaned)}")
+                logging.debug(f"Cleaned URL ASCII codes: {[ord(c) for c in cleaned]}")
+
                 if not is_valid_url(cleaned):
-                    logging.warning(f"Invalid URL found: {cleaned}")
+                    logging.warning(f"Invalid URL found after cleaning: {cleaned}")
                     continue
+
                 # Fallback cleaning: ensure only printable characters remain
                 cleaned = re.sub(r'[^\x20-\x7E]+', '', cleaned)
                 article['url'] = cleaned
