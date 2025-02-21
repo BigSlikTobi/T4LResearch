@@ -70,38 +70,42 @@ def mark_article_as_processed(article_id: int):
     except Exception as e:
         print(f"Error marking article {article_id} as processed: {e}")
 
-# Load all necessary data
-unprocessed_articles = get_unprocessed_articles()  # CHANGED: Get unprocessed articles from memory
-with open("English_articles.json", "r", encoding='utf-8') as f:
-    english_articles = json.load(f)
-with open("German_articles.json", "r", encoding='utf-8') as f:
-    german_articles = json.load(f)
-with open("images.json", "r", encoding='utf-8') as f:
-    images_data = json.load(f)
+def process_articles(unprocessed_articles, english_articles, german_articles, images_data):
+    """Main function to process and store articles in the database."""
+    for article in unprocessed_articles:
+        article_id = article["id"]
+        print(f"\nStoring data for article ID: {article_id}")
 
-# Insert records and mark as processed
-for article in unprocessed_articles:
-    article_id = article["id"]
-    print(f"\nStoring data for article ID: {article_id}")
+        # Convert integer ID to string if your JSON uses string keys
+        str_id = str(article_id)
 
-    # Convert integer ID to string if your JSON uses string keys
-    str_id = str(article_id)
+        # Get the English and German data for this article
+        english_data = english_articles.get(str_id, {"headline": "", "content": ""})
+        german_data = german_articles.get(str_id, {"headline": "", "content": ""})
+        image_data = images_data.get(str_id, {
+            "imageURL": "",
+            "imageAltText": "",
+            "imageSource": "",
+            "imageAttribution": ""
+        })
 
-    # Get the English and German data for this article
-    english_data = english_articles.get(str_id, {"headline": "", "content": ""})
-    german_data = german_articles.get(str_id, {"headline": "", "content": ""})
-    image_data = images_data.get(str_id, {
-        "imageURL": "",
-        "imageAltText": "",
-        "imageSource": "",
-        "imageAttribution": ""
-    })
+        # Create the record in 'NewsArticle'
+        new_record_id = create_news_article_record(article, english_data, german_data, image_data)
 
-    # Create the record in 'NewsArticle'
-    new_record_id = create_news_article_record(article, english_data, german_data, image_data)
+        # If insertion succeeded, mark the article as processed
+        if new_record_id:
+            mark_article_as_processed(article_id)
 
-    # If insertion succeeded, mark the article as processed
-    if new_record_id:
-        mark_article_as_processed(article_id)
+if __name__ == '__main__':
+    # Load all necessary data
+    unprocessed_articles = get_unprocessed_articles()
+    
+    with open("English_articles.json", "r", encoding='utf-8') as f:
+        english_articles = json.load(f)
+    with open("German_articles.json", "r", encoding='utf-8') as f:
+        german_articles = json.load(f)
+    with open("images.json", "r", encoding='utf-8') as f:
+        images_data = json.load(f)
 
-print("Data storage complete.")
+    process_articles(unprocessed_articles, english_articles, german_articles, images_data)
+    print("Data storage complete.")

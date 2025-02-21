@@ -36,7 +36,7 @@ team_detection_prompt: |
   You are an expert in sports news analysis. Analyze the following article content and determine which team is the primary subject. Also assign a confidence score between 0 and 1 to your detection. Return the answer in JSON format with exactly two keys:
   - "team": a string containing the team's name.
   - "confidence": a numeric value between 0 and 1.
-  - use this names for the teams: 'chiefs', 'browns', 'ravens', 'steelers', 'bengals', 'bills', 'dolphins', 'jets', 'patriots', 'texans', 'colts', 'jaguars', 'titans', 'chargers', 'broncos', 'raiders', 'lions', 'vikings', 'packers', 'bears', 'eagles', 'commanders', 'cowboys', 'giants', 'buccaneers', 'falcons', 'saints', 'panthers', 'rams', 'seahawks', 'cardinals', '49ers'
+  - use exactly this names for the teams: 'chiefs', 'browns', 'ravens', 'steelers', 'bengals', 'bills', 'dolphins', 'jets', 'patriots', 'texans', 'colts', 'jaguars', 'titans', 'chargers', 'broncos', 'raiders', 'lions', 'vikings', 'packers', 'bears', 'eagles', 'commanders', 'cowboys', 'giants', 'buccaneers', 'falcons', 'saints', 'panthers', 'rams', 'seahawks', 'cardinals', '49ers'. Make sure, that all team names are in lowercase.
 
   Article content:
   {article_content}

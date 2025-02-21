@@ -18,7 +18,7 @@ def init_openai() -> dict:
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
     if not OPENAI_API_KEY:
         raise EnvironmentError("OPENAI_API_KEY not set")
-    provider = "openai/gpt-4o-mini"
+    provider = "gpt-4o-mini"
     return {"provider": provider, "api_key": OPENAI_API_KEY}
 
 def initialize_model(provider: str = "gemini"):

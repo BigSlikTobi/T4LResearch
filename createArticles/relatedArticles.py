@@ -1,14 +1,18 @@
 #TODO: Add related Articles for Keywords to Database to fetch information from there instead of scraping the web multiple times
 
 import os
+import sys
+
 import json
 import asyncio
 import nest_asyncio
 import random
 from duckduckgo_search import DDGS
-from .keyword_extractor import KeywordExtractor
-from .content_extractor import ContentExtractor
-from ..LLMSetup import initialize_model
+from keyword_extractor import KeywordExtractor
+from content_extractor import ContentExtractor
+# Add parent directory to Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from LLMSetup import initialize_model
 
 nest_asyncio.apply()
 
@@ -66,7 +70,11 @@ async def process_source_article(article_id: str, article_content: str) -> dict:
     Process a source article to extract keywords and find background articles.
     """
     print(f"\nProcessing source article ID: {article_id}")
-    keywords = await keyword_extractor.extract_keywords(article_content)
+    try:
+        keywords = await keyword_extractor.extract_keywords(article_content)
+    except Exception as e:
+        print(f"Error extracting keywords for article {article_id}: {e}")
+        keywords = []
     if not keywords:
         print(f"No keywords extracted for article {article_id}")
         return {article_id: []}
