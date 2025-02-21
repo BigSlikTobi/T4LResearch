@@ -79,11 +79,16 @@ async def process_source_article(article_id: str, article_content: str) -> dict:
         print(f"No keywords extracted for article {article_id}")
         return {article_id: []}
         
-    background_articles = []
-    for keyword in keywords:
-        articles = await search_background_articles(keyword)
-        background_articles.extend(articles)
-    return {article_id: background_articles}
+    # Use asyncio.gather to process keywords concurrently
+    background_articles = await asyncio.gather(
+        *(search_background_articles(keyword) for keyword in keywords)
+    )
+    # Flatten the list of article lists
+    flattened_articles = [
+        article for sublist in background_articles 
+        for article in sublist if article
+    ]
+    return {article_id: flattened_articles}
 
 async def process_all_source_articles():
     """
@@ -101,9 +106,15 @@ async def process_all_source_articles():
     else:
         articles_dict = source_articles
 
+    # Process all articles concurrently
+    results = await asyncio.gather(
+        *(process_source_article(art_id, content) 
+          for art_id, content in articles_dict.items())
+    )
+    
+    # Combine all results into a single dictionary
     enriched_background = {}
-    for art_id, content in articles_dict.items():
-        result = await process_source_article(art_id, content)
+    for result in results:
         enriched_background.update(result)
 
     with open("enriched_background_articles.json", "w", encoding="utf-8") as f:
