@@ -1,0 +1,23 @@
+name: Run Sequential Pipeline
+
+on:
+  schedule:
+    - cron: "0 */8 * * *"
+  workflow_dispatch:
+
+jobs:
+  run_pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      
+      - name: Run Sequential Pipeline
+        run: |
+          # ...existing setup code...
+          python createArticles/runSequentialPipeline.py

@@ -38,13 +38,12 @@ supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Helper Functions for Embedding Cache
 # -------------------------------
 def get_embedding(text: str) -> list:
-    """Compute an embedding for the text using OpenAI's updated embeddings API."""
-    response = openai.embeddings.create(
+    """Compute an embedding for the text using OpenAI's embedding model."""
+    response = openai.Embedding.create(
         input=text,
         model="text-embedding-ada-002"
     )
-    # Use attribute access: response.data is a list of objects; each object’s embedding can be accessed via .embedding
-    return response.data[0].embedding
+    return response["data"][0]["embedding"]
 
 def query_cache(embedding: list, threshold: float = 0.9):
     """
@@ -88,7 +87,7 @@ async def search_background_articles(keyword: str) -> list:
     """
     print(f"Searching background articles for keyword: '{keyword}'")
     
-    # Compute the embedding asynchronously (run in thread to avoid blocking)
+    # Compute the embedding asynchronously (since OpenAI's API is synchronous)
     embedding = await asyncio.to_thread(get_embedding, keyword)
     
     # Check the cache using the computed embedding
