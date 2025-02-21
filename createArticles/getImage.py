@@ -74,10 +74,6 @@ async def search_image(article_content: str) -> dict:
         print(f"Image search error: {e}")
         return {}
 
-# Load English articles
-with open("English_articles.json", "r", encoding='utf-8') as f:
-    english_articles = json.load(f)
-
 images_data = {}
 
 async def process_single_article(article_id: str, article):
@@ -111,25 +107,29 @@ def empty_image_data():
         "imageAttribution": ""
     }
 
-async def process_all_articles():
+async def process_all_articles(english_articles):
     """Main processing coroutine for all articles."""
     tasks = []
     for article_id, article in english_articles.items():
         tasks.append(process_single_article(article_id, article))
     await asyncio.gather(*tasks)
 
-def run_image_generation():
+def run_image_generation(english_articles):
     """Handle event loop creation and run image processing."""
     try:
-        asyncio.run(process_all_articles())
+        asyncio.run(process_all_articles(english_articles))
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(process_all_articles())
+        loop.run_until_complete(process_all_articles(english_articles))
 
 # Execute the processing
 if __name__ == '__main__':
-    run_image_generation()
+    # Load English articles
+    with open("English_articles.json", "r", encoding='utf-8') as f:
+        english_articles = json.load(f)
+
+    run_image_generation(english_articles)
 
     # Save results to images.json
     with open("images.json", "w", encoding='utf-8') as f:

@@ -84,13 +84,13 @@ Bitte gib die Antwort ausschließlich im folgenden JSON-Format aus, ohne zusätz
         print(f"Unknown error: {e}")
         return {"headline": "", "content": "", "raw_response": raw_response_clean if verbose else ""}
 
-# Load main article contents and enriched related articles
-with open("extracted_contents.json", "r", encoding="utf-8") as f:
-    extracted_contents = json.load(f)
-with open("enriched_background_articles.json", "r", encoding="utf-8") as f:
-    enriched_related_articles = json.load(f)
-
 async def main():
+    # Load files only when running as script
+    with open("extracted_contents.json", "r", encoding="utf-8") as f:
+        extracted_contents = json.load(f)
+    with open("enriched_background_articles.json", "r", encoding="utf-8") as f:
+        enriched_related_articles = json.load(f)
+
     german_articles = {}
     # Loop through each article and generate the German version.
     for article_id, main_content in extracted_contents.items():

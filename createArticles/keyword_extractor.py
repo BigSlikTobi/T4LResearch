@@ -16,9 +16,10 @@ def strip_markdown(response_text: str) -> str:
 
 class KeywordExtractor:
     def __init__(self, model_name: str, api_key: str):
-        self.model_name = model_name
+        self.model_name = model_name  # Fixed assignment
         self.api_key = api_key
         self.prompts = load_prompts()
+        print(f"Using model: {self.model_name}")  # Added print statement
 
     def _call_openai_api(self, prompt: str) -> str:
         headers = {
@@ -36,9 +37,21 @@ class KeywordExtractor:
         }
         try:
             response = requests.post("https://api.openai.com/v1/chat/completions",
-                                   headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
+                                     headers=headers, json=payload, timeout=60)
+            # If response is not 200, try to parse error message and log it.
+            if response.status_code != 200:
+                try:
+                    error_data = response.json().get("error", {})
+                    error_msg = error_data.get("message", response.text)
+                except Exception:
+                    error_msg = response.text
+                print(f"Error calling OpenAI API (status code {response.status_code}): {error_msg}")
+                return ""
             data = response.json()
+            # Check if API returned an error in the JSON payload
+            if "error" in data:
+                print(f"API error returned: {data['error'].get('message', 'Unknown error')}")
+                return ""
             return data["choices"][0]["message"]["content"]
         except Exception as e:
             print("Error calling OpenAI API:", e)
@@ -52,6 +65,9 @@ class KeywordExtractor:
         prompt = self.prompts["keyword_extraction_prompt"].format(article_content=main_content)
         raw_response = self._call_openai_api(prompt)
         print("Raw API response for keywords:", raw_response)
+        if not raw_response:
+            print("No valid API response received.")
+            return []
         raw_response = strip_markdown(raw_response)
         try:
             keywords_data = json.loads(raw_response)

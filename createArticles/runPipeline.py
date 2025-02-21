@@ -24,7 +24,7 @@ def run_pipeline():
     # Run the modules in sequence
     subprocess.run(["python", "fetchUnprocessedArticles.py"], check=True, env=env)
     subprocess.run(["python", "extractContent.py"], check=True, env=env)
-    subprocess.run(["python", "relatedArticles.py"], check=True, env=env)
+    subprocess.run(["python", "-m", "createArticles.relatedArticles"], check=True, env=env)
     subprocess.run(["python", "englishArticle.py"], check=True, env=env)
     subprocess.run(["python", "germanArticle.py"], check=True, env=env)
     subprocess.run(["python", "getImage.py"], check=True, env=env)
