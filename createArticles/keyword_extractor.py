@@ -1,5 +1,5 @@
 import json
-import requests
+import httpx
 import os
 import yaml
 from typing import List, Dict
@@ -21,7 +21,7 @@ class KeywordExtractor:
         self.prompts = load_prompts()
         print(f"Using model: {self.model_name}")  # Added print statement
 
-    def _call_openai_api(self, prompt: str) -> str:
+    async def _call_openai_api(self, prompt: str) -> str:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
@@ -35,27 +35,30 @@ class KeywordExtractor:
             "temperature": 0.7,
             "max_tokens": 1800,
         }
-        try:
-            response = requests.post("https://api.openai.com/v1/chat/completions",
-                                     headers=headers, json=payload, timeout=60)
-            # If response is not 200, try to parse error message and log it.
-            if response.status_code != 200:
-                try:
-                    error_data = response.json().get("error", {})
-                    error_msg = error_data.get("message", response.text)
-                except Exception:
-                    error_msg = response.text
-                print(f"Error calling OpenAI API (status code {response.status_code}): {error_msg}")
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0
+                )
+                if response.status_code != 200:
+                    try:
+                        error_data = response.json().get("error", {})
+                        error_msg = error_data.get("message", response.text)
+                    except Exception:
+                        error_msg = response.text
+                    print(f"Error calling OpenAI API (status code {response.status_code}): {error_msg}")
+                    return ""
+                data = response.json()
+                if "error" in data:
+                    print(f"API error returned: {data['error'].get('message', 'Unknown error')}")
+                    return ""
+                return data["choices"][0]["message"]["content"]
+            except Exception as e:
+                print("Error calling OpenAI API:", e)
                 return ""
-            data = response.json()
-            # Check if API returned an error in the JSON payload
-            if "error" in data:
-                print(f"API error returned: {data['error'].get('message', 'Unknown error')}")
-                return ""
-            return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            print("Error calling OpenAI API:", e)
-            return ""
 
     async def extract_keywords(self, main_content: str) -> List[str]:
         """
@@ -63,7 +66,7 @@ class KeywordExtractor:
         Returns only keywords with a confidence score > 0.75.
         """
         prompt = self.prompts["keyword_extraction_prompt"].format(article_content=main_content)
-        raw_response = self._call_openai_api(prompt)
+        raw_response = await self._call_openai_api(prompt)
         print("Raw API response for keywords:", raw_response)
         if not raw_response:
             print("No valid API response received.")

@@ -1,4 +1,4 @@
-import requests
+import httpx
 from urllib.parse import urlparse
 from crawl4ai import AsyncWebCrawler, CacheMode, LLMExtractionStrategy
 import json
@@ -15,10 +15,9 @@ class ContentExtractor:
         self.api_key = api_key
         self.prompts = load_prompts()
 
-    def is_valid_url(self, url: str) -> bool:
+    async def is_valid_url(self, url: str) -> bool:
         """
-        Checks if the URL is well-formed and reachable.
-        Uses a HEAD request with a custom User-Agent; if HEAD fails, a GET request is attempted.
+        Checks if the URL is well-formed and reachable using async httpx.
         """
         headers = {
             "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -27,16 +26,18 @@ class ContentExtractor:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
             return False
-        try:
-            response = requests.head(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                return True
-            # Fallback to GET if HEAD fails
-            response = requests.get(url, headers=headers, timeout=10)
-            return response.status_code == 200
-        except Exception as e:
-            print(f"URL validation exception for {url}: {e}")
-            return False
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.head(url, headers=headers, timeout=10.0)
+                if response.status_code == 200:
+                    return True
+                # Fallback to GET if HEAD fails
+                response = await client.get(url, headers=headers, timeout=10.0)
+                return response.status_code == 200
+            except Exception as e:
+                print(f"URL validation exception for {url}: {e}")
+                return False
 
     async def extract_article_content(self, url: str) -> str:
         """
