@@ -4,20 +4,49 @@ on:
   schedule:
     - cron: "0 */8 * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+defaults:
+  run:
+    working-directory: .
 
 jobs:
   run_pipeline:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+      LC_CTYPE: en_US.UTF-8
+
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Print locale variables
+        run: |
+          echo "LC_ALL=$LC_ALL"
+          echo "LANG=$LANG"
+          echo "LC_CTYPE=$LC_CTYPE"
       
-      - name: Set up Python 3.9
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: '3.12'
       
-      - name: Run Sequential Pipeline
+      - name: Install dependencies
         run: |
-          # ...existing setup code...
-          python createArticles/runSequentialPipeline.py
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Sequential Pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEBUG_ASCII: "false"
+        run: python runsequentialpipeline.py
