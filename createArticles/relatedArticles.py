@@ -46,6 +46,7 @@ def get_embedding(text: str) -> list:
     # Use attribute access: response.data is a list of objects; each object’s embedding can be accessed via .embedding
     return response.data[0].embedding
 
+
 def query_cache(embedding: list, threshold: float = 0.9):
     """
     Query the Supabase cache using the RPC 'match_keywords' that performs a vector similarity search.
@@ -89,6 +90,7 @@ async def search_background_articles(keyword: str) -> list:
     print(f"Searching background articles for keyword: '{keyword}'")
     
     # Compute the embedding asynchronously (run in thread to avoid blocking)
+
     embedding = await asyncio.to_thread(get_embedding, keyword)
     
     # Check the cache using the computed embedding
