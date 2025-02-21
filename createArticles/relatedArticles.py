@@ -10,6 +10,7 @@ import random
 from duckduckgo_search import DDGS
 from keyword_extractor import KeywordExtractor
 from content_extractor import ContentExtractor
+from asyncio import sleep
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from LLMSetup import initialize_model
@@ -48,7 +49,7 @@ async def search_background_articles(keyword: str) -> list:
                 continue
             if not url.startswith("http"):
                 url = "https://" + url
-            if content_extractor.is_valid_url(url):
+            if await content_extractor.is_valid_url(url):  # Add await here
                 print(f"Valid article URL found for keyword '{keyword}': {url}")
                 title = result.get("title", "")
                 content = await content_extractor.extract_article_content(url)
