@@ -44,8 +44,53 @@ async def generate_search_query(article_content: str) -> str:
         print(f"Query generation error: {e}")
         return ""
 
+async def rank_images_by_content(article_content: str, image_candidates: list) -> dict:
+    """
+    Use an LLM to rank candidate images by content fit and return the best one.
+    """
+    # Prepare an excerpt of the article to keep the prompt concise.
+    article_excerpt = article_content[:1500]
+
+    # Create a structured, numbered list of candidate images with key metadata.
+    candidate_info = "\n".join(
+        f"{i+1}. URL: {img.get('image', 'N/A')}\n   Title: {img.get('title', 'N/A')}\n   Source: {img.get('url', 'N/A')}"
+        for i, img in enumerate(image_candidates)
+    )
+
+    # Craft the prompt for the LLM.
+    prompt = (
+        f"Below is an excerpt from a news article:\n\n"
+        f"{article_excerpt}\n\n"
+        f"And here are 10 candidate images with their metadata:\n"
+        f"{candidate_info}\n\n"
+        f"Based on the content of the article, please select the image that best fits the story. "
+        f"Provide only the number corresponding to the best candidate."
+    )
+
+    print("Sending ranking prompt to LLM...")
+    response = await aclient.chat.completions.create(
+        model=model_config["model"]["provider"],
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=20
+    )
+    ranking_result = response.choices[0].message.content.strip()
+    print(f"LLM ranking result: {ranking_result}")
+
+    try:
+        # Parse the result to extract the selected candidate number.
+        selected_index = int(ranking_result) - 1  # assuming numbering starts at 1
+        best_candidate = image_candidates[selected_index]
+        return best_candidate
+    except Exception as e:
+        print(f"Error parsing LLM ranking response: {e}")
+        # Fallback: return the first candidate if parsing fails.
+        return image_candidates[0] if image_candidates else {}
+
 async def search_image(article_content: str) -> dict:
-    """Search for an image using DuckDuckGo API via DDGS."""
+    """
+    Search for an image using the DuckDuckGo API via DDGS, gather 10 candidate images,
+    and then use an LLM to rank them by content fit.
+    """
     try:
         # Generate a search query that includes the recency constraint.
         search_query = await generate_search_query(article_content)
@@ -54,22 +99,24 @@ async def search_image(article_content: str) -> dict:
             return {}
 
         print(f"Searching for images with query: {search_query}")
-        # Use DDGS to search for images.
+        # Use DDGS to search for images and collect 10 candidates.
         with DDGS() as ddgs:
-            # ddgs.images() returns an iterator; we convert it to a list.
-            results = list(ddgs.images(search_query, max_results=1))
+            results = list(ddgs.images(search_query, max_results=10))
             print(f"DDGS returned {len(results)} result(s).")
             if not results:
                 print("No image results returned from DDGS.")
                 return {}
-            result = results[0]
-            print(f"Image result: {result}")
-            return {
-                "imageURL": result.get("image", ""),
-                "imageAltText": result.get("title", ""),
-                "imageSource": result.get("url", ""),
-                "imageAttribution": result.get("source", "")
-            }
+
+        # Use the LLM to select the best candidate based on content.
+        best_candidate = await rank_images_by_content(article_content, results)
+        print(f"Selected best image: {best_candidate}")
+
+        return {
+            "imageURL": best_candidate.get("image", ""),
+            "imageAltText": best_candidate.get("title", ""),
+            "imageSource": best_candidate.get("url", ""),
+            "imageAttribution": best_candidate.get("source", "")
+        }
     except Exception as e:
         print(f"Image search error: {e}")
         return {}

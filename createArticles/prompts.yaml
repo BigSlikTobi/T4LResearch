@@ -44,10 +44,10 @@ team_detection_prompt: |
   Please output only valid JSON.
 
 image_search_prompt: |
-  Given the following article content, extract the main visual elements (subject, location, and notable objects)
-  and create a concise English image search query (maximum 12 words) that would retrieve a relevant featured image.
-  Make sure the query implies that the image is from the last 6 months.
-  Output only the query string without any additional text or quotation marks.
+  Given the following article content, extract the main visual elements (subject, location, and notable objects).
+   Create a concise English image search query (maximum 12 words) that will retrieve a relevant **high-resolution, clear, well-lit, professionally composed, or editorial-quality featured image with minimal watermarks.**
+   Ensure the query implies that the image is **very recent, specifically from the last 14 days.**
+   Output only the query string without any additional text or quotation marks.
 
   Article Content:
   {article_content}
