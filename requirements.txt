@@ -5,9 +5,8 @@ supabase>=2.13.0
 playwright
 google-generativeai
 duckduckgo-search
-python-dotenv
+python-dotenv>=1.0.0
 pytest
 openai
 PyYAML
 httpx
-supabase
