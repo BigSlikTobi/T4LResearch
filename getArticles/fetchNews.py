@@ -61,7 +61,7 @@ class NewsItem(BaseModel):
     href: str = Field(..., description="Relative URL (href) from the anchor tag")
     url: str = Field(..., description="Full URL of the news item")
     publishedAt: str = Field(..., alias="published_at", description="Publication date in YYYY-MM-DD format")
-    isProcessed: bool = Field(False, description="Flag indicating if the item has been processed")
+    isProcessed: bool = Field(default=False, description="Flag indicating if the item has been processed")
 
 def remove_control_chars(s: str) -> str:
     """Remove all Unicode control characters from a string."""
@@ -163,6 +163,8 @@ async def scrape_sports_news(
         item["url"] = clean_url_for_extraction(item["url"])
         # Clean ID: lower-case, replace spaces with hyphens, remove non-alphanumeric/hyphen characters
         item["id"] = re.sub(r'[^\w\-]', '', item["id"].lower().replace(" ", "-"))
+        # Ensure isProcessed is set to False for new articles
+        item["isProcessed"] = False
         cleaned_data.append(item)
     return cleaned_data
 
