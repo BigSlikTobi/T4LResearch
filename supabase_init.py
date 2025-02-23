@@ -27,7 +27,7 @@ class SupabaseClient:
                 "href": article.get("href"),
                 "url": article.get("url"),
                 "publishedAt": article.get("published_at"),
-                "isProcessed": True,
+                "isProcessed": False,
                 "summary": article.get("summary"),
                 "embedding": article.get("embedding")
             }

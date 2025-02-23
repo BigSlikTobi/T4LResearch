@@ -82,21 +82,28 @@ def store_cache(keyword: str, embedding: list, result: list):
 # -------------------------------
 # Asynchronous Related Articles Processing with Embedding Caching
 # -------------------------------
+
+# Defining a global Keyword variable to store a global keyword that well be combined with the extracted keywords to optimize the search 
+GOBAL_KEYWORD = "American Football"
+
 async def search_background_articles(keyword: str) -> list:
     """
     Searches for background articles using DuckDuckGo for the given keyword.
     First checks the embedding-based cache in Supabase; if a cached result exists, returns it.
     """
     print(f"Searching background articles for keyword: '{keyword}'")
+
+    #combine the global keyword with the extracted keyword to optimize the search
+    search_query = f"{keyword} {GOBAL_KEYWORD}"
     
     # Compute the embedding asynchronously (run in thread to avoid blocking)
 
-    embedding = await asyncio.to_thread(get_embedding, keyword)
+    embedding = await asyncio.to_thread(get_embedding, search_query)
     
     # Check the cache using the computed embedding
     cached = await asyncio.to_thread(query_cache, embedding, 0.9)
     if cached:
-        print(f"Cache hit for keyword '{keyword}'.")
+        print(f"Cache hit for keyword '{search_query}'.")
         return cached.get("result", [])
     
     # No cache hit—perform DuckDuckGo search
@@ -105,9 +112,9 @@ async def search_background_articles(keyword: str) -> list:
     valid_article = None
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(keyword, max_results=3))
+            results = list(ddgs.text(search_query, max_results=3))
     except Exception as e:
-        print(f"Error during DuckDuckGo search for keyword '{keyword}': {e}")
+        print(f"Error during DuckDuckGo search for keyword '{search_query}': {e}")
         results = []
     
     if results:
@@ -119,11 +126,11 @@ async def search_background_articles(keyword: str) -> list:
                 url = "https://" + url
             # Await the asynchronous URL validation
             if await content_extractor.is_valid_url(url):
-                print(f"Valid article URL found for keyword '{keyword}': {url}")
+                print(f"Valid article URL found for keyword '{search_query}': {url}")
                 title = result.get("title", "")
                 content = await content_extractor.extract_article_content(url)
                 valid_article = {
-                    "keyword": keyword,
+                    "keyword": search_query,
                     "title": title,
                     "url": url,
                     "content": content
@@ -132,11 +139,11 @@ async def search_background_articles(keyword: str) -> list:
             else:
                 print(f"Invalid URL skipped: {url}")
     else:
-        print(f"No search results for keyword '{keyword}'")
+        print(f"No search results for keyword '{search_query}'")
     
     result_to_cache = [valid_article] if valid_article else []
     # Store the new result in cache asynchronously
-    await asyncio.to_thread(store_cache, keyword, embedding, result_to_cache)
+    await asyncio.to_thread(store_cache, search_query, embedding, result_to_cache)
     
     return result_to_cache
 
