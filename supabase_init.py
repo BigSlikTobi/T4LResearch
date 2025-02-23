@@ -4,6 +4,7 @@ import logging
 from supabase import create_client, Client  # Import Client
 from urllib.parse import urlparse
 from createArticles.detectTeam import detectTeam  # Relative import
+from typing import Dict, Any, Optional
 
 logging.basicConfig(level=logging.INFO)
 
@@ -16,24 +17,28 @@ class SupabaseClient:
         self.client = create_client(supabase_url, supabase_key)
         self.team_detector = detectTeam()
 
-    def post_new_source_article_to_supabase(self, article: dict) -> None: # Changed to dict
-        # Use the 'id' key as fallback for 'uniqueName'
-        unique_name = article.get("uniqueName", article.get("id"))
-        publishedAt = article.get("publishedAt", article.get("published_at"))
-        payload = {
-            "uniqueName": unique_name,
-            "source": article["source"],
-            "headline": article["headline"],
-            "href": article["href"],
-            "url": article["url"],
-            "publishedAt": publishedAt,
-            "isProcessed": article.get("isProcessed", False),
-        }
+    def post_new_source_article_to_supabase(self, article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
-            response = self.client.table("NewsResults").insert(payload).execute() # Removed list
-            logging.info(f"Successfully posted: {unique_name}")
+            # Prepare the data with new fields
+            data = {
+                "uniqueName": article.get("id"),
+                "source": article.get("source"),
+                "headline": article.get("headline"),
+                "href": article.get("href"),
+                "url": article.get("url"),
+                "publishedAt": article.get("published_at"),
+                "isProcessed": True,
+                "summary": article.get("summary"),
+                "embedding": article.get("embedding")
+            }
+
+            # Insert into Supabase
+            result = self.client.table('NewsResults').insert(data).execute()
+            return result.data[0] if result.data else None
+
         except Exception as e:
-            logging.error(f"Error posting {unique_name}: {e}")
+            logging.error(f"Error posting to Supabase: {e}")
+            raise
 
     def create_news_article_record(self, article: dict, english_data: dict,
                                      german_data: dict, image_data: dict) -> int:
