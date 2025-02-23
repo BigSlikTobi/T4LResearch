@@ -46,7 +46,7 @@ Please provide your answer strictly in the following JSON format without any add
             prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.7,
-                max_output_tokens=2048,
+                max_output_tokens=8192,
             )
         )
         raw_response = response_obj.text
