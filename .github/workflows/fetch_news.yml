@@ -1,12 +1,10 @@
-name: Fetch News
+name: Fetch News (Fetcher) # Changed name for clarity
 
 on:
-  schedule:
-    - cron: '*/20 * * * *'  # Runs every 20 minutes
-  workflow_dispatch:  # Allows manual triggering
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Fetch News (Trigger)"]  # Must match Workflow 1's name
+    types:
+      - requested
 
 defaults:
   run:
@@ -14,7 +12,7 @@ defaults:
 
 jobs:
   fetch-news:
-    if: github.ref == 'refs/heads/main'  # Ensure it only runs on main
+    # Removed the if: condition, as it's now guaranteed to be on main
     runs-on: ubuntu-latest
     env:
       LC_ALL: en_US.UTF-8
@@ -24,25 +22,25 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          ref: main  # Explicitly checkout the main branch
-      
+          ref: main  # Still good practice
+
       - name: Print locale variables
         run: |
           echo "LC_ALL=$LC_ALL"
           echo "LANG=$LANG"
           echo "LC_CTYPE=$LC_CTYPE"
-        
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-        
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Playwright Browsers  
+      - name: Install Playwright Browsers
         run: playwright install
 
       - name: Run news fetcher

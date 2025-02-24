@@ -1,0 +1,20 @@
+name: Run Sequential Pipeline (Trigger)
+
+on:
+  schedule:
+    - cron: "0 */1 * * *"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  trigger-main-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger workflow on main
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Run Sequential Pipeline (Fetcher)  # Name of the *second* workflow
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
