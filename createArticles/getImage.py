@@ -16,32 +16,49 @@ dotenv.load_dotenv()
 
 # Initialize OpenAI model
 model_config = initialize_model("openai")
+model_config["model"]["temperature"] = 0.1
 aclient = AsyncOpenAI(api_key=model_config["model"]["api_key"])
 
 # Load prompts
 with open("prompts.yaml", "r") as f:
     prompts = yaml.safe_load(f)
 
-async def generate_search_query(article_content: str) -> str:
+# Import KeywordExtractor to extract keywords instead of relying solely on LLM query generation
+from keyword_extractor import KeywordExtractor
+
+async def generate_search_query(article_content: str, keywords: list = None) -> str:
     """
-    Generate an image search query using LLM by extracting key visual elements,
-    and include a constraint that the image should be from the last 6 months.
+    Generate an image search query using both the extracted keywords and a summary of the article content.
+    The summary is generated via an LLM call to capture key visual elements.
+    The final query also includes recency and aspect ratio constraints.
     """
     try:
-        prompt = prompts["image_search_prompt"].format(article_content=article_content[:2000])
-        response = await aclient.chat.completions.create(
+        if keywords is None or not keywords:
+            print("No extracted keywords available; returning empty query.")
+            return ""
+        
+        # Truncate the article content to avoid overly long prompts
+        article_excerpt = article_content[:1500]
+        summarization_prompt = (
+            f"Summarize the following article text to extract key visual elements for an image search "
+            f"(such as the subject, location, and notable objects). Provide your answer as a short, "
+            f"comma-separated list of keywords:\n\n{article_excerpt}"
+        )
+        print("Generating summary for image search query...")
+        summary_response = await aclient.chat.completions.create(
             model=model_config["model"]["provider"],
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": summarization_prompt}],
             max_tokens=50
         )
-        query = response.choices[0].message.content.strip()
-        # Remove surrounding quotation marks if present
-        if query.startswith('"') and query.endswith('"'):
-            query = query[1:-1].strip()
-        print(f"Generated search query: {query}")
-        return query
+        summary_text = summary_response.choices[0].message.content.strip()
+        
+        # Combine the extracted keywords with the summary keywords.
+        combined = " ".join(keywords) + " " + summary_text
+        final_query = combined + " recent 14-day 16:9"
+        print(f"Generated search query from keywords and summary: {final_query}")
+        return final_query
     except Exception as e:
-        print(f"Query generation error: {e}")
+        print(f"Error in generating search query: {e}")
         return ""
 
 async def rank_images_by_content(article_content: str, image_candidates: list) -> dict:
@@ -86,31 +103,66 @@ async def rank_images_by_content(article_content: str, image_candidates: list) -
         # Fallback: return the first candidate if parsing fails.
         return image_candidates[0] if image_candidates else {}
 
-async def search_image(article_content: str) -> dict:
+async def search_image(article_content: str, extracted_keywords: list = None) -> dict:
     """
-    Search for an image using the DuckDuckGo API via DDGS, gather 10 candidate images,
+    Search for an image using the DuckDuckGo API via DDGS, gather candidate images,
+    filter them ensuring they are not older than 14 days and have a 16:9 aspect ratio,
     and then use an LLM to rank them by content fit.
+    Uses already extracted keywords to generate the search query.
     """
     try:
-        # Generate a search query that includes the recency constraint.
-        search_query = await generate_search_query(article_content)
+        # Generate a search query with recency and aspect ratio constraints using provided keywords and article summary.
+        search_query = await generate_search_query(article_content, extracted_keywords)
         if not search_query:
             print("Empty search query generated.")
             return {}
-
         print(f"Searching for images with query: {search_query}")
-        # Use DDGS to search for images and collect 10 candidates.
+        # Use DDGS to search for images and collect candidates across simulated pages
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=14)
+        filtered_results = []
+        fallback_candidate = None  # Fallback candidate if no image passes filtering
         with DDGS() as ddgs:
-            results = list(ddgs.images(search_query, max_results=10))
-            print(f"DDGS returned {len(results)} result(s).")
-            if not results:
-                print("No image results returned from DDGS.")
+            page = 1
+            max_pages = 5  # try up to 5 pages
+            while page <= max_pages:
+                total_requested = page * 10
+                results = list(ddgs.images(search_query, max_results=total_requested))
+                if fallback_candidate is None and results:
+                    fallback_candidate = results[0]
+                current_page_results = results[(page-1)*10 : page*10]
+                print(f"Page {page} returned {len(current_page_results)} result(s) (total requested {total_requested}).")
+                if not current_page_results:
+                    break
+                for img in current_page_results:
+                    try:
+                        if 'date' not in img:
+                            continue
+                        candidate_date = datetime.fromisoformat(img['date'])
+                        if candidate_date < cutoff_date:
+                            continue
+                        if 'width' in img and 'height' in img and img['height'] > 0:
+                            aspect = img['width'] / img['height']
+                            if abs(aspect - (16/9)) > 0.1:
+                                continue
+                        else:
+                            continue
+                        filtered_results.append(img)
+                    except Exception as e:
+                        continue
+                if filtered_results:
+                    break
+                page += 1
+        if not filtered_results:
+            if fallback_candidate is not None:
+                print("No candidates passed filtering; using fallback candidate.")
+                best_candidate = fallback_candidate
+            else:
+                print("No candidates passed filtering for date and aspect ratio after searching multiple pages.")
                 return {}
-
-        # Use the LLM to select the best candidate based on content.
-        best_candidate = await rank_images_by_content(article_content, results)
+        else:
+            best_candidate = await rank_images_by_content(article_content, filtered_results)
         print(f"Selected best image: {best_candidate}")
-
         return {
             "imageURL": best_candidate.get("image", ""),
             "imageAltText": best_candidate.get("title", ""),
@@ -126,19 +178,21 @@ images_data = {}
 async def process_single_article(article_id: str, article):
     """Process one article and store its image data."""
     print(f"Processing article {article_id}")
-    # Determine article content.
     if isinstance(article, dict):
         content = article.get("content", "")
+        extracted_keywords = article.get("keywords", [])
     elif isinstance(article, str):
         content = article
+        extracted_keywords = []
     else:
         content = ""
+        extracted_keywords = []
 
     if not content:
         images_data[article_id] = empty_image_data()
         return
 
-    image_info = await search_image(content)
+    image_info = await search_image(content, extracted_keywords)
     images_data[article_id] = image_info if image_info else empty_image_data()
 
     if image_info:
@@ -170,21 +224,17 @@ def run_image_generation(english_articles):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(process_all_articles(english_articles))
 
-# Execute the processing
 if __name__ == '__main__':
-    # Load English articles
     with open("English_articles.json", "r", encoding='utf-8') as f:
         english_articles = json.load(f)
 
     run_image_generation(english_articles)
 
-    # Save results to images.json
     with open("images.json", "w", encoding='utf-8') as f:
         json.dump(images_data, f, ensure_ascii=False, indent=2)
 
     print(f"\nImage generation complete. Saved {len(images_data)} entries.")
 
-    # Show sample output
     if images_data:
         sample_id = next(iter(images_data))
         print(f"\nSample entry ({sample_id}):")

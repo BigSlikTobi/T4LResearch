@@ -7,6 +7,12 @@ from englishArticle import generate_english_article
 from germanArticle import generate_german_article
 from getImage import search_image  # Assumes getImage.py exists and provides search_image.
 from storeInDB import create_news_article_record, mark_article_as_processed
+from keyword_extractor import KeywordExtractor
+from LLMSetup import initialize_model
+
+# Initialize the KeywordExtractor with the OpenAI model
+model_config = initialize_model("openai")
+keyword_extractor = KeywordExtractor(model_config["model"]["provider"], model_config["model"]["api_key"])
 
 # --- Helper functions for similarity grouping ---
 def cosine_similarity(vec1: list, vec2: list) -> float:
@@ -55,6 +61,7 @@ async def process_article_group(article_group: list):
     """
     combined_content = ""
     combined_related = []
+    combined_keywords = set()  # Using a set to ensure uniqueness
     
     for article in article_group:
         article_id = article["id"]
@@ -63,25 +70,53 @@ async def process_article_group(article_group: list):
         content = await extract_main_content(url)
         if content:
             combined_content += content + "\n"
-        # Fetch related background articles for this article.
+            
+        # Fetch related background articles for this article
         related_dict = await process_source_article(str(article_id), content)
         related_articles = related_dict.get(str(article_id), [])
         combined_related.extend(related_articles)
+        
+        # Extract and collect keywords from multiple sources
+        # 1. From article metadata if available
+        if isinstance(article, dict):
+            if "keywords" in article and article["keywords"]:
+                combined_keywords.update(article["keywords"])
+                
+            # 2. From article summary/metadata if available
+            if "summary" in article and article["summary"]:
+                try:
+                    summary_keywords = await keyword_extractor.extract_keywords(article["summary"])
+                    combined_keywords.update(summary_keywords)
+                except Exception as e:
+                    print(f"Error extracting keywords from summary: {e}")
+                    
+            # 3. From extracted content
+            if content:
+                try:
+                    content_keywords = await keyword_extractor.extract_keywords(content)
+                    combined_keywords.update(content_keywords)
+                except Exception as e:
+                    print(f"Error extracting keywords from content: {e}")
     
     if not combined_content.strip():
         print("No content extracted for this group, skipping...")
         return
     
+    # Convert keywords set back to list and print for debugging
+    final_keywords = list(combined_keywords)
+    print(f"Final combined keywords for image search: {final_keywords}")
+    
     print("Generating combined English article...")
-    english_data = await generate_english_article(combined_content, combined_related, verbose=True)
+    english_data = await generate_english_article(combined_content, combined_related, verbose=False)
     
     print("Generating combined German article...")
-    german_data = await generate_german_article(combined_content, combined_related, verbose=True)
+    german_data = await generate_german_article(combined_content, combined_related, verbose=False)
     
     print("Searching for image for combined content...")
-    image_data = await search_image(combined_content)
+    # Pass the combined keywords to the image search function
+    image_data = await search_image(combined_content, final_keywords)
     
-    # Use the first article in the group as the representative record.
+    # Use the first article in the group as the representative record
     representative_article = article_group[0]
     new_record_id = create_news_article_record(representative_article, english_data, german_data, image_data)
     if new_record_id:
