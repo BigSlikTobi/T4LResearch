@@ -7,7 +7,8 @@ def create_news_article_record(
     article: dict,
     english_data: dict,
     german_data: dict,
-    image_data: dict
+    image_data: dict,
+    is_reviewed: bool = False  # Add parameter with default False
 ) -> int:
     """
     Inserts a new record into 'NewsArticle'.
@@ -15,6 +16,13 @@ def create_news_article_record(
     the respective fields.
     This version also detects the team name from the English article content.
     Returns the ID of the newly created record or None on failure.
+    
+    Args:
+        article: Source article data
+        english_data: English translation data
+        german_data: German translation data
+        image_data: Image metadata
+        is_reviewed: Whether the article has been reviewed/cleaned
     """
     try:
         # Extract base URL from imageSource for imageAttribution
@@ -43,7 +51,8 @@ def create_news_article_record(
             "imageSource": image_data.get("imageSource", ""),
             "imageAttribution": base_image_url,
             "isHeadline": False,  # Assuming default value is false.
-            "Team": team_name
+            "Team": team_name,
+            "isReviewed": is_reviewed  # Use the parameter instead of hardcoding False
         }
 
         # CHANGED: use direct access to result.data

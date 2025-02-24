@@ -9,6 +9,7 @@ from getImage import search_image  # Assumes getImage.py exists and provides sea
 from storeInDB import create_news_article_record, mark_article_as_processed
 from keyword_extractor import KeywordExtractor
 from LLMSetup import initialize_model
+from review import clean_text
 
 # Initialize the KeywordExtractor with the OpenAI model
 model_config = initialize_model("openai")
@@ -112,13 +113,25 @@ async def process_article_group(article_group: list):
     print("Generating combined German article...")
     german_data = await generate_german_article(combined_content, combined_related, verbose=False)
     
+    # Clean the generated articles before storing
+    english_data["headline"] = clean_text(english_data["headline"])
+    english_data["content"] = clean_text(english_data["content"])
+    german_data["headline"] = clean_text(german_data["headline"])
+    german_data["content"] = clean_text(german_data["content"])
+    
     print("Searching for image for combined content...")
     # Pass the combined keywords to the image search function
     image_data = await search_image(combined_content, final_keywords)
     
     # Use the first article in the group as the representative record
     representative_article = article_group[0]
-    new_record_id = create_news_article_record(representative_article, english_data, german_data, image_data)
+    new_record_id = create_news_article_record(
+        representative_article, 
+        english_data, 
+        german_data, 
+        image_data,
+        is_reviewed=True  # Mark as reviewed since we've cleaned the text
+    )
     if new_record_id:
         for article in article_group:
             mark_article_as_processed(article["id"])
