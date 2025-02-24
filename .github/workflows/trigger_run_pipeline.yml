@@ -17,4 +17,4 @@ jobs:
         with:
           workflow: Run Sequential Pipeline (Fetcher)  # Name of the *second* workflow
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.ACTIONS_PAT }}
