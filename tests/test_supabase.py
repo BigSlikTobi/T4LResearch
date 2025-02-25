@@ -55,9 +55,9 @@ def test_create_news_article_record():
     }
     
     test_image_data = {
-        "imageURL": "https://test.com/image.jpg",
+        "image": "https://test.com/image.jpg",  # Changed from imageURL to image
         "imageAltText": "Test Image",
-        "imageSource": "https://test.com",
+        "url": "https://test.com",  # Changed from imageSource to url
         "imageAttribution": "Test Attribution"
     }
     

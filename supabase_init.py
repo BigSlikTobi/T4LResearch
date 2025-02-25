@@ -43,7 +43,7 @@ class SupabaseClient:
     def create_news_article_record(self, article: dict, english_data: dict,
                                      german_data: dict, image_data: dict) -> int:
         try:
-            image_source_url = image_data.get("imageSource", "")
+            image_source_url = image_data.get("url", "")  # Changed from imageSource to url
             parsed_url = urlparse(image_source_url)
             base_image_url = f"{parsed_url.scheme}://{parsed_url.netloc}" if parsed_url.netloc else image_source_url
             team_detection = self.team_detector.detect_team(english_data.get("content", ""))
@@ -58,9 +58,9 @@ class SupabaseClient:
                 "EnglishArticle": english_data.get("content", ""),
                 "GermanHeadline": german_data.get("headline", ""),
                 "GermanArticle": german_data.get("content", ""),
-                "imageUrl": image_data.get("imageURL", ""),
+                "imageUrl": image_data.get("image", ""),  # Changed from imageURL to image
                 "imageAltText": image_data.get("imageAltText", ""),
-                "imageSource": image_data.get("imageSource", ""),
+                "imageSource": image_data.get("url", ""),  # Changed from imageSource to url
                 "imageAttribution": base_image_url,
                 "isHeadline": False,
                 "Team": team_name
@@ -76,6 +76,46 @@ class SupabaseClient:
         except Exception as e:
             logging.error(f"Error creating record in 'NewsArticle' table: {e}")
             return None
+
+    def create_news_article_with_image(self, article, english_data, german_data, image_data):
+        """
+        Create a news article record with image data.
+        """
+        try:
+            record_to_insert = {
+                "NewsResult": article.get("uniqueName"),
+                "sourceURL": article.get("url"),
+                "sourceArticlePublishedAt": article.get("publishedAt"),
+                "sourceArticleUpdatedAt": article.get("publishedAt"),
+                "sourceAutor": article.get("author", "Unknown"),
+                "EnglishHeadline": english_data.get("headline", ""),
+                "EnglishArticle": english_data.get("content", ""),
+                "GermanHeadline": german_data.get("headline", ""),
+                "GermanArticle": german_data.get("content", ""),
+                "imageUrl": image_data.get("image", ""),  # Changed from imageURL to image
+                "imageAltText": image_data.get("imageAltText", ""),
+                "imageSource": image_data.get("url", ""),  # Changed from imageSource to url
+            }
+            response = self.client.table("NewsArticle").insert([record_to_insert]).execute()
+            if response and len(response) > 1 and response[1]:
+                new_id = response[1][0].get("id")
+                logging.info(f"Created new record in 'NewsArticle' table with ID: {new_id}")
+                return new_id
+            else:
+                logging.error("Failed to create new record: No data returned from insert operation.")
+                return None
+        except Exception as e:
+            logging.error(f"Error creating record in 'NewsArticle' table: {e}")
+            return None
+
+    def empty_image_data(self):
+        """Return empty image data structure"""
+        return {
+            "image": "",  # Changed from imageURL to image
+            "imageAltText": "",
+            "url": "",  # Changed from imageSource to url
+            "imageAttribution": ""
+        }
 
     def mark_article_as_processed(self, article_id: int) -> None:
         try:
@@ -101,9 +141,9 @@ if __name__ == "__main__":
         english_data = english_articles.get(str_id, {"headline": "", "content": ""})
         german_data = german_articles.get(str_id, {"headline": "", "content": ""})
         image_data = images_data.get(str_id, {
-            "imageURL": "",
+            "image": "",  # Changed from imageURL to image
             "imageAltText": "",
-            "imageSource": "",
+            "url": "",  # Changed from imageSource to url
             "imageAttribution": ""
         })
         new_record_id = supabase.create_news_article_record(article, english_data, german_data, image_data)

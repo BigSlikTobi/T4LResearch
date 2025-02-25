@@ -26,7 +26,7 @@ def create_news_article_record(
     """
     try:
         # Extract base URL from imageSource for imageAttribution
-        image_source_url = image_data.get("imageSource", "")
+        image_source_url = image_data.get("url", "")  # Changed from imageSource to url
         parsed_url = urlparse(image_source_url)
         base_image_url = parsed_url.scheme + "://" + parsed_url.netloc if parsed_url.netloc else image_source_url
 
@@ -46,9 +46,9 @@ def create_news_article_record(
             "EnglishArticle": english_data.get("content", ""),
             "GermanHeadline": german_data.get("headline", ""),
             "GermanArticle": german_data.get("content", ""),
-            "imageUrl": image_data.get("imageURL", ""),
+            "imageUrl": image_data.get("image", ""),  # Changed from imageURL to image
             "imageAltText": image_data.get("imageAltText", ""),
-            "imageSource": image_data.get("imageSource", ""),
+            "imageSource": image_data.get("url", ""),  # Changed from imageSource to url
             "imageAttribution": base_image_url,
             "isHeadline": False,  # Assuming default value is false.
             "Team": team_name,
@@ -92,9 +92,9 @@ def process_articles(unprocessed_articles, english_articles, german_articles, im
         english_data = english_articles.get(str_id, {"headline": "", "content": ""})
         german_data = german_articles.get(str_id, {"headline": "", "content": ""})
         image_data = images_data.get(str_id, {
-            "imageURL": "",
+            "image": "",  # Changed from imageURL to image
             "imageAltText": "",
-            "imageSource": "",
+            "url": "",  # Changed from imageSource to url
             "imageAttribution": ""
         })
 
