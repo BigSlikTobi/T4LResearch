@@ -1,0 +1,21 @@
+name: Article Status Update (Trigger)
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"  # Every 2 hours
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  trigger-status-update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Article Status Update workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Update Article Statuses
+          ref: main
+          token: ${{ secrets.ACTIONS_PAT }}

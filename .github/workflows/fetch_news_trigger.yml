@@ -1,20 +1,21 @@
-name: Run Sequential Pipeline (Trigger)
+name: Fetch News (Trigger)
 
 on:
   schedule:
-    - cron: "0 */1 * * *"
+    - cron: "*/20 * * * *"  # Every 20 minutes
   push:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  trigger-main-run:
+  trigger-news-fetch:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger workflow on main
+      - name: Trigger News Fetch workflow
         uses: benc-uk/workflow-dispatch@v1
         with:
-          workflow: Run Sequential Pipeline (Fetcher)  # Name of the *second* workflow
+          workflow: Fetch News (Fetcher)
           ref: main
           token: ${{ secrets.ACTIONS_PAT }}
