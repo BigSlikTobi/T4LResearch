@@ -5,11 +5,12 @@ from extractContent import extract_main_content
 from relatedArticles import process_source_article
 from englishArticle import generate_english_article
 from germanArticle import generate_german_article
-from getImage import search_image  # Assumes getImage.py exists and provides search_image.
+from getImage import search_image
 from storeInDB import create_news_article_record, mark_article_as_processed
 from keyword_extractor import KeywordExtractor
 from LLMSetup import initialize_model
-from review import clean_text
+from review import clean_text, review_article_fields
+from supabase_init import SupabaseClient
 
 # Initialize the KeywordExtractor with the OpenAI model
 model_config = initialize_model("openai")
@@ -133,8 +134,14 @@ async def process_article_group(article_group: list):
         is_reviewed=True  # Mark as reviewed since we've cleaned the text
     )
     if new_record_id:
-        for article in article_group:
-            mark_article_as_processed(article["id"])
+        # Review the article fields
+        review_passed = await review_article_fields(new_record_id, representative_article["uniqueName"])
+        
+        if review_passed:
+            for article in article_group:
+                mark_article_as_processed(article["id"])
+        else:
+            print("Article failed review process")
     else:
         print("Failed to store the combined article in the DB.")
 
