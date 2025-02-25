@@ -164,9 +164,9 @@ async def search_image(article_content: str, extracted_keywords: list = None) ->
             best_candidate = await rank_images_by_content(article_content, filtered_results)
         print(f"Selected best image: {best_candidate}")
         return {
-            "imageURL": best_candidate.get("image", ""),
+            "image": best_candidate.get("image", ""),  # Changed from imageURL to image
             "imageAltText": best_candidate.get("title", ""),
-            "imageSource": best_candidate.get("url", ""),
+            "url": best_candidate.get("url", ""),  # Changed from imageSource to url
             "imageAttribution": best_candidate.get("source", "")
         }
     except Exception as e:
@@ -202,9 +202,9 @@ async def process_single_article(article_id: str, article):
 
 def empty_image_data():
     return {
-        "imageURL": "",
+        "image": "",  # Changed from imageURL to image
         "imageAltText": "",
-        "imageSource": "",
+        "url": "",  # Changed from imageSource to url
         "imageAttribution": ""
     }
 
