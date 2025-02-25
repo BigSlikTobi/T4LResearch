@@ -1,0 +1,31 @@
+name: Update Article Statuses
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # Run every 2 hours
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-statuses:
+    runs-on: ubuntu-latest
+    
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+    steps:
+    - uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Update article statuses
+      run: |
+        python -c "from createArticles.storeInDB import update_article_statuses; update_article_statuses()"
