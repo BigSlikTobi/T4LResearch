@@ -36,6 +36,51 @@ def update_article(supabase_client, article_id: int, updates: dict) -> bool:
         print(f"Error updating article {article_id}: {e}")
         return False
 
+async def review_article_fields(record_id: int, news_result_unique_name: str) -> bool:
+    """
+    Review article fields and handle invalid articles.
+    Returns True if article passes review, False if it fails and is deleted.
+    """
+    supabase = SupabaseClient()
+    
+    # Get the article record
+    response = supabase.client.table("NewsArticle").select("*").eq("id", record_id).execute()
+    if not response.data or len(response.data) == 0:
+        print(f"No article found with ID {record_id}")
+        return False
+    
+    article = response.data[0]
+    
+    # Check required fields
+    required_fields = {
+        "EnglishArticle": article.get("EnglishArticle", ""),
+        "GermanArticle": article.get("GermanArticle", ""),
+        "EnglishHeadline": article.get("EnglishHeadline", ""),
+        "GermanHeadline": article.get("GermanHeadline", "")
+    }
+    
+    # Check if any required field is empty
+    if any(not field.strip() for field in required_fields.values()):
+        print(f"Article {record_id} failed review - missing required content")
+        
+        # Delete the article
+        try:
+            supabase.client.table("NewsArticle").delete().eq("id", record_id).execute()
+            print(f"Deleted article {record_id} from NewsArticle table")
+            
+            # Update NewsResults isProcessed to false
+            supabase.client.table("NewsResults").update(
+                {"isProcessed": False}
+            ).eq("uniqueName", news_result_unique_name).execute()
+            print(f"Updated NewsResults record {news_result_unique_name} to isProcessed=false")
+            
+            return False
+        except Exception as e:
+            print(f"Error during cleanup of invalid article: {e}")
+            return False
+    
+    return True
+
 def main():
     load_dotenv()
     
