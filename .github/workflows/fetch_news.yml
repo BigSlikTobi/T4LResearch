@@ -1,8 +1,9 @@
-name: Fetch News (Fetcher) # Changed name for clarity
+name: Fetch News (Fetcher)
 
 on:
+  workflow_dispatch:
   workflow_run:
-    workflows: ["Fetch News (Trigger)"]  # Must match Workflow 1's name
+    workflows: ["Fetch News (Trigger)"]
     types:
       - requested
 

@@ -2,6 +2,7 @@ name: Run Sequential Pipeline (Fetcher)
 
 on:
   workflow_run:
+  workflow_dispatch:
     workflows: ["Run Sequential Pipeline (Trigger)"] # Matches the trigger workflow's name
     types:
       - requested
