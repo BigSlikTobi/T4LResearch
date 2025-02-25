@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import requests
 from dotenv import load_dotenv
 
 # Add parent directory to Python path
@@ -24,6 +25,24 @@ def clean_text(text: str) -> str:
     cleaned = cleaned.strip()
     
     return cleaned
+
+def verify_image_accessibility(image_url: str) -> bool:
+    """
+    Verify if an image URL is accessible by attempting to fetch its headers.
+    Returns True if the image is accessible, False otherwise.
+    """
+    try:
+        if not image_url:
+            return False
+        
+        response = requests.head(image_url, timeout=10)
+        content_type = response.headers.get('content-type', '')
+        
+        # Check if status code is successful and content type is an image
+        return response.status_code == 200 and 'image' in content_type.lower()
+    except Exception as e:
+        print(f"Error checking image accessibility: {e}")
+        return False
 
 def update_article(supabase_client, article_id: int, updates: dict) -> bool:
     """Update the article with cleaned text."""
@@ -62,24 +81,32 @@ async def review_article_fields(record_id: int, news_result_unique_name: str) ->
     # Check if any required field is empty
     if any(not field.strip() for field in required_fields.values()):
         print(f"Article {record_id} failed review - missing required content")
-        
-        # Delete the article
-        try:
-            supabase.client.table("NewsArticle").delete().eq("id", record_id).execute()
-            print(f"Deleted article {record_id} from NewsArticle table")
-            
-            # Update NewsResults isProcessed to false
-            supabase.client.table("NewsResults").update(
-                {"isProcessed": False}
-            ).eq("uniqueName", news_result_unique_name).execute()
-            print(f"Updated NewsResults record {news_result_unique_name} to isProcessed=false")
-            
-            return False
-        except Exception as e:
-            print(f"Error during cleanup of invalid article: {e}")
-            return False
+        await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
+        return False
+    
+    # Check image accessibility
+    image_url = article.get("ImageUrl", "")
+    if not verify_image_accessibility(image_url):
+        print(f"Article {record_id} failed review - image is not accessible: {image_url}")
+        await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
+        return False
     
     return True
+
+async def delete_article_and_update_news_result(supabase, record_id: int, news_result_unique_name: str):
+    """Helper function to delete article and update NewsResults"""
+    try:
+        # Delete the article
+        supabase.client.table("NewsArticle").delete().eq("id", record_id).execute()
+        print(f"Deleted article {record_id} from NewsArticle table")
+        
+        # Update NewsResults isProcessed to false
+        supabase.client.table("NewsResults").update(
+            {"isProcessed": False}
+        ).eq("uniqueName", news_result_unique_name).execute()
+        print(f"Updated NewsResults record {news_result_unique_name} to isProcessed=false")
+    except Exception as e:
+        print(f"Error during cleanup of invalid article: {e}")
 
 def main():
     load_dotenv()

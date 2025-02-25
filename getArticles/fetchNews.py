@@ -119,7 +119,7 @@ async def scrape_sports_news(
     url: str,
     base_url: str,
     schema: Type[BaseModel] = NewsItem,
-    max_items: int = 25,
+    max_items: int = 10,
     time_period: str = "last 48 hours"
 ):
     """Reusable sports news scraper for any website"""
