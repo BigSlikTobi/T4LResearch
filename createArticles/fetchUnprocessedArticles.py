@@ -23,6 +23,27 @@ def get_unprocessed_articles() -> List[Dict]:
         print(f"Error fetching unprocessed items from Supabase: {e}")
         return []
 
+def get_active_articles() -> List[Dict]:
+    """
+    Fetches all active NewsArticle records (not ARCHIVED).
+    """
+    try:
+        response = supabase_client.table("NewsArticle")\
+            .select("*")\
+            .not_.eq("Status", "ARCHIVED")\
+            .execute()
+        return response.data or []
+    except Exception as e:
+        print(f"Error fetching active articles from Supabase: {e}")
+        return []
+
+def get_all_active_news() -> tuple[List[Dict], List[Dict]]:
+    """
+    Fetches both unprocessed NewsResults and active NewsArticle records.
+    Returns a tuple of (unprocessed_articles, active_articles).
+    """
+    return get_unprocessed_articles(), get_active_articles()
+
 if __name__ == "__main__":
     unprocessed_articles = get_unprocessed_articles()
     print(f"Found {len(unprocessed_articles)} unprocessed articles.")
