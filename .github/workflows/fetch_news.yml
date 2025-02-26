@@ -2,6 +2,8 @@ name: Fetch News (Fetcher)
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [fetch-news]
   workflow_run:
     workflows: ["Fetch News (Trigger)"]
     types:

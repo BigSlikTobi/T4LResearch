@@ -2,6 +2,8 @@ name: Run Sequential Pipeline (Fetcher)
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [run-sequential-pipeline]
   workflow_run:
     workflows: ["Run Sequential Pipeline (Trigger)"] # Matches the trigger workflow's name
     types:
