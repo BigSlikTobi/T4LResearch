@@ -98,6 +98,27 @@ team_detection_prompt: |
 
   Please output only valid JSON.
 
+team_refinement_prompt: |
+  You are an expert in sports news analysis. Analyze the following NFL article carefully and determine if it is genuinely focused on a specific team or if it discusses multiple teams or general NFL news.
+  
+  Article content:
+  {article_content}
+  
+  Initial team detected: {team_candidate}
+  
+  Please analyze thoroughly:
+  1. Count how many times different NFL teams are mentioned throughout the entire article, not just the beginning
+  2. Determine if the article is primarily about one team with other teams mentioned as opponents or background, or if it genuinely covers multiple teams equally
+  3. Check if the article focuses on league-wide news, trades affecting multiple teams, or general NFL updates
+  4. Consider if a different team than the initially detected one is actually the main focus
+  
+  Respond with JSON containing the following fields:
+  - "is_consistent": boolean (true if the article is clearly about the initially detected team, false if it's about multiple teams or general NFL news)
+  - "primary_team": string (the actual main team if different from initially detected, "others" if no single team is the clear focus)
+  - "reasoning": brief explanation of your determination
+  
+  Return only valid JSON.
+
 image_search_prompt: |
   Given the following article content, extract the main visual elements (subject, location, and notable objects).
   Create a concise English image search query (maximum 12 words) that will retrieve a relevant high-resolution, clear, well-lit, professionally composed, or editorial-quality featured image without watermarks.
