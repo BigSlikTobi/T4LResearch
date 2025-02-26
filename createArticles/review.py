@@ -124,8 +124,11 @@ async def review_article_fields(record_id: int, news_result_unique_name: str) ->
     """
     Review article fields and handle invalid articles.
     Returns True if article passes review, False if it fails and is deleted.
+    
+    Now includes fallback image selection if the primary image is not accessible.
     """
     supabase = SupabaseClient()
+    print(f"=== REVIEW: Starting review for article {record_id} with news result {news_result_unique_name} ===")
     
     # Get the article record
     response = supabase.client.table("NewsArticle").select("*").eq("id", record_id).execute()
@@ -150,17 +153,86 @@ async def review_article_fields(record_id: int, news_result_unique_name: str) ->
         return False
     
     # Check image accessibility
-    image_url = article.get("imageUrl", "")  # Changed from ImageUrl to imageUrl to match database field
-    print(f"\nChecking image accessibility for article {record_id}")
-    print(f"Image URL: {image_url}")
+    image_url = article.get("imageUrl", "")
+    print(f"\nREVIEW: Checking image accessibility for article {record_id}")
+    print(f"REVIEW: Image URL: {image_url}")
     
     if not verify_image_accessibility(image_url):
-        print(f"Article {record_id} failed review - image is not accessible: {image_url}")
-        await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
-        return False
+        print(f"REVIEW: Primary image is not accessible: {image_url}. Attempting to find backup images...")
+        
+        # Try to find backup images using the article content and keywords
+        try:
+            from getImage import search_image
+            
+            # Use article content and headline to generate new search keywords
+            content = article.get("EnglishArticle", "")
+            headline = article.get("EnglishHeadline", "")
+            search_text = f"{headline}\n{content[:500]}"  # Use headline and part of content
+            
+            # Get team info if available to use as keyword
+            team = article.get("Team", "")
+            keywords = [team] if team and team.strip() else []
+            print(f"REVIEW: Searching for backup images using keywords: {keywords} and headline: {headline[:50]}...")
+            
+            # Search for multiple backup images (get 5 candidates)
+            backup_images = await search_image(search_text, keywords, return_multiple=True, num_images=5)
+            
+            if not backup_images:
+                print("REVIEW: No backup images found")
+                await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
+                return False
+                
+            print(f"REVIEW: Found {len(backup_images)} backup image candidates")
+                
+            # Try each backup image until we find one that's accessible
+            accessible_image = None
+            for i, img_data in enumerate(backup_images):
+                backup_img_url = img_data.get("image")
+                if not backup_img_url:
+                    continue
+                    
+                print(f"REVIEW: Checking backup image {i+1}: {backup_img_url}")
+                if verify_image_accessibility(backup_img_url):
+                    print(f"REVIEW: Found accessible backup image: {backup_img_url}")
+                    accessible_image = img_data
+                    break
+                else:
+                    print(f"REVIEW: Backup image {i+1} is not accessible")
+            
+            # If we found an accessible backup image, update the article
+            if accessible_image:
+                updates = {
+                    "imageUrl": accessible_image.get("image", ""),
+                    "imageSource": accessible_image.get("url", ""),
+                    "imageAltText": accessible_image.get("imageAltText", ""),
+                    "imageAttribution": accessible_image.get("imageAttribution", "")
+                }
+                
+                print(f"REVIEW: Updating article {record_id} with new image: {updates['imageUrl']}")
+                
+                if update_article(supabase, record_id, updates):
+                    print(f"REVIEW: Article {record_id} updated with backup image")
+                    return True
+                else:
+                    print(f"REVIEW: Failed to update article {record_id} with backup image")
+            else:
+                print(f"REVIEW: None of the backup images are accessible")
+            
+            # If we reach here, all image attempts failed
+            print(f"REVIEW: Article {record_id} failed review - could not find an accessible image")
+            await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
+            return False
+            
+        except Exception as e:
+            print(f"REVIEW: Error while searching for backup images: {e}")
+            import traceback
+            print(f"REVIEW: Exception traceback: {traceback.format_exc()}")
+            await delete_article_and_update_news_result(supabase, record_id, news_result_unique_name)
+            return False
     else:
-        print(f"Image accessibility check passed for article {record_id}")
+        print(f"REVIEW: Image accessibility check passed for article {record_id}")
     
+    print(f"=== REVIEW: Article {record_id} successfully passed review ===")
     return True
 
 async def delete_article_and_update_news_result(supabase, record_id: int, news_result_unique_name: str):

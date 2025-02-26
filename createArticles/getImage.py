@@ -103,75 +103,126 @@ async def rank_images_by_content(article_content: str, image_candidates: list) -
         # Fallback: return the first candidate if parsing fails.
         return image_candidates[0] if image_candidates else {}
 
-async def search_image(article_content: str, extracted_keywords: list = None) -> dict:
+async def search_image(article_content: str, extracted_keywords: list = None, return_multiple: bool = False, num_images: int = 3) -> dict:
     """
     Search for an image using the DuckDuckGo API via DDGS, gather candidate images,
     filter them ensuring they are not older than 14 days and have a 16:9 aspect ratio,
     and then use an LLM to rank them by content fit.
     Uses already extracted keywords to generate the search query.
+    
+    Args:
+        article_content: The article content to use for image search
+        extracted_keywords: List of keywords to use for the search
+        return_multiple: If True, returns multiple image candidates instead of just the best one
+        num_images: Number of images to return when return_multiple is True
+        
+    Returns:
+        If return_multiple is False (default): A dict with image info for the best candidate
+        If return_multiple is True: A list of dicts with image info for multiple candidates
     """
     try:
         # Generate a search query with recency and aspect ratio constraints using provided keywords and article summary.
         search_query = await generate_search_query(article_content, extracted_keywords)
         if not search_query:
             print("Empty search query generated.")
-            return {}
+            return [] if return_multiple else {}
+            
         print(f"Searching for images with query: {search_query}")
         # Use DDGS to search for images and collect candidates across simulated pages
         from datetime import datetime, timedelta
         cutoff_date = datetime.now() - timedelta(days=14)
         filtered_results = []
-        fallback_candidate = None  # Fallback candidate if no image passes filtering
+        all_results = []  # Store all results for backup options
+        
         with DDGS() as ddgs:
             page = 1
             max_pages = 5  # try up to 5 pages
             while page <= max_pages:
                 total_requested = page * 10
                 results = list(ddgs.images(search_query, max_results=total_requested))
-                if fallback_candidate is None and results:
-                    fallback_candidate = results[0]
+                
+                # Store all results for potential backup options
+                for result in results:
+                    if result not in all_results:
+                        all_results.append(result)
+                        
                 current_page_results = results[(page-1)*10 : page*10]
                 print(f"Page {page} returned {len(current_page_results)} result(s) (total requested {total_requested}).")
+                
                 if not current_page_results:
                     break
+                    
                 for img in current_page_results:
                     try:
-                        if 'date' not in img:
-                            continue
-                        candidate_date = datetime.fromisoformat(img['date'])
-                        if candidate_date < cutoff_date:
-                            continue
+                        # For filtered results, apply stricter criteria
+                        if 'date' in img:
+                            try:
+                                candidate_date = datetime.fromisoformat(img['date'])
+                                if candidate_date < cutoff_date:
+                                    continue
+                            except:
+                                # Date parsing failed, still consider the image
+                                pass
+                                
                         if 'width' in img and 'height' in img and img['height'] > 0:
                             aspect = img['width'] / img['height']
                             if abs(aspect - (16/9)) > 0.1:
                                 continue
                         else:
                             continue
+                            
                         filtered_results.append(img)
                     except Exception as e:
                         continue
-                if filtered_results:
+                        
+                if len(filtered_results) >= num_images and return_multiple:
                     break
+                elif filtered_results and not return_multiple:
+                    break
+                    
                 page += 1
+        
+        # If we need multiple images and have enough filtered results
+        if return_multiple:
+            # If we don't have enough filtered results, supplement with unfiltered results
+            if len(filtered_results) < num_images:
+                filtered_results.extend([r for r in all_results if r not in filtered_results])
+                filtered_results = filtered_results[:num_images]
+                
+            if filtered_results:
+                # Return multiple image candidates
+                candidates = []
+                for candidate in filtered_results[:num_images]:
+                    candidates.append({
+                        "image": candidate.get("image", ""),
+                        "imageAltText": candidate.get("title", ""),
+                        "url": candidate.get("url", ""),
+                        "imageAttribution": candidate.get("source", "")
+                    })
+                return candidates
+            return []
+            
+        # If we just need the best image (original behavior)
         if not filtered_results:
-            if fallback_candidate is not None:
+            if all_results:
                 print("No candidates passed filtering; using fallback candidate.")
-                best_candidate = fallback_candidate
+                best_candidate = all_results[0]
             else:
-                print("No candidates passed filtering for date and aspect ratio after searching multiple pages.")
+                print("No candidates found after searching multiple pages.")
                 return {}
         else:
             best_candidate = await rank_images_by_content(article_content, filtered_results)
+            
         print(f"Selected best image: {best_candidate}")
         return {
-            "image": best_candidate.get("image", ""),  # Changed from imageURL to image
+            "image": best_candidate.get("image", ""),
             "imageAltText": best_candidate.get("title", ""),
-            "url": best_candidate.get("url", ""),  # Changed from imageSource to url
+            "url": best_candidate.get("url", ""),
             "imageAttribution": best_candidate.get("source", "")
         }
     except Exception as e:
         print(f"Image search error: {e}")
-        return {}
+        return [] if return_multiple else {}
 
 images_data = {}
 
