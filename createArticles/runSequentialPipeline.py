@@ -9,7 +9,7 @@ from getImage import search_image
 from storeInDB import create_news_article_record, mark_article_as_processed
 from keyword_extractor import KeywordExtractor
 from LLMSetup import initialize_model
-from review import clean_text, review_article_fields
+from review import clean_text, review_article_fields, check_similarity_and_update
 from supabase_init import SupabaseClient
 
 # Initialize the KeywordExtractor with the OpenAI model
@@ -95,13 +95,13 @@ async def process_article_group(article_group: list):
     combined_related = []
     combined_keywords = set()
     existing_article = None
-
+    
     # Identify if there's an existing article in the group
     for article in article_group:
         if "Status" in article:  # This indicates it's an existing article
             existing_article = article
             break
-
+            
     for article in article_group:
         article_id = article["id"]
         # Skip content extraction for existing articles as we already have their content
@@ -136,11 +136,11 @@ async def process_article_group(article_group: list):
                     combined_keywords.update(content_keywords)
                 except Exception as e:
                     print(f"Error extracting keywords from content: {e}")
-
+                    
     if not combined_content.strip():
         print("No content extracted for this group, skipping...")
         return
-
+        
     final_keywords = list(combined_keywords)
     
     # Generate new article content
@@ -208,6 +208,15 @@ async def process_article_group(article_group: list):
         else:
             print("Failed to store the combined article in the DB.")
 
+async def check_processed_articles_similarity():
+    """
+    Check for similarity between newly created articles and already processed ones.
+    This handles the scenario of finding similar articles between those that were
+    already processed (isProcessed = true) but weren't caught in the initial grouping.
+    """
+    print("Running extended similarity check between new and processed articles...")
+    await check_similarity_and_update(threshold=0.85)
+
 async def main():
     # Get both unprocessed and active articles
     unprocessed_articles, active_articles = get_all_active_news()
@@ -215,7 +224,7 @@ async def main():
     if not unprocessed_articles:
         print("No unprocessed articles found.")
         return
-
+        
     # Group similar articles, now considering both new and existing articles
     groups = group_similar_articles(unprocessed_articles, active_articles, threshold=0.85)
     print(f"Found {len(groups)} group(s) of similar articles.")
@@ -225,6 +234,10 @@ async def main():
         group_ids = [article["id"] for article in group]
         print(f"\nProcessing group with article IDs: {group_ids}")
         await process_article_group(group)
+    
+    # After processing all groups, run an additional check for similarity
+    # between newly created articles and already processed ones
+    await check_processed_articles_similarity()
 
 if __name__ == "__main__":
     asyncio.run(main())

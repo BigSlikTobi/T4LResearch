@@ -4,10 +4,11 @@ import re
 import requests
 from dotenv import load_dotenv
 import urllib.parse
-
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from supabase_init import SupabaseClient
+from LLMSetup import initialize_model
+import numpy as np
 
 def clean_text(text: str) -> str:
     """Remove all '\n' sequences, clean up spacing, and remove leading quotes."""
@@ -176,6 +177,190 @@ async def delete_article_and_update_news_result(supabase, record_id: int, news_r
         print(f"Updated NewsResults record {news_result_unique_name} to isProcessed=false")
     except Exception as e:
         print(f"Error during cleanup of invalid article: {e}")
+
+async def check_similarity_and_update(threshold=0.85):
+    """
+    Check for similarity between unprocessed news results and processed articles.
+    If similar articles are found, combine their content and update the existing article.
+    
+    Args:
+        threshold: Cosine similarity threshold for considering articles as similar (0-1)
+    """
+    print("Starting similarity check between unprocessed and processed articles...")
+    supabase = SupabaseClient()
+    llm = initialize_model("openai")  # Use OpenAI for processing combined text
+    
+    # Get unprocessed news results with embeddings
+    unprocessed_response = supabase.client.table("NewsResults").select("*").eq("isProcessed", False).execute()
+    if not unprocessed_response.data:
+        print("No unprocessed articles to check.")
+        return
+    
+    unprocessed_articles = unprocessed_response.data
+    print(f"Found {len(unprocessed_articles)} unprocessed articles to check.")
+    
+    # Get processed news results with embeddings
+    processed_response = supabase.client.table("NewsResults").select("*").eq("isProcessed", True).execute()
+    if not processed_response.data:
+        print("No processed articles to compare against.")
+        return
+    
+    processed_articles = processed_response.data
+    print(f"Found {len(processed_articles)} processed articles to compare against.")
+    
+    # Check for similarity between unprocessed and processed articles
+    for unprocessed in unprocessed_articles:
+        print(f"Checking unprocessed article: {unprocessed.get('uniqueName')}")
+        
+        # Skip articles without embeddings
+        if not unprocessed.get("embedding"):
+            print(f"Article {unprocessed.get('uniqueName')} has no embedding, skipping.")
+            continue
+            
+        unprocessed_embedding = unprocessed.get("embedding")
+        
+        # Find similar processed articles
+        similar_processed = []
+        for processed in processed_articles:
+            if not processed.get("embedding"):
+                continue
+                
+            processed_embedding = processed.get("embedding")
+            
+            # Calculate cosine similarity
+            try:
+                similarity = cosine_similarity(unprocessed_embedding, processed_embedding)
+                if similarity >= threshold:
+                    similar_processed.append({
+                        "article": processed,
+                        "similarity": similarity
+                    })
+            except Exception as e:
+                print(f"Error calculating similarity: {e}")
+                continue
+        
+        # If similar processed articles found, combine content and update
+        if similar_processed:
+            print(f"Found {len(similar_processed)} similar processed articles to {unprocessed.get('uniqueName')}")
+            
+            # Sort by similarity score (highest first)
+            similar_processed.sort(key=lambda x: x["similarity"], reverse=True)
+            
+            # Get the NewsArticle record for the most similar article
+            most_similar = similar_processed[0]["article"]
+            
+            # Get the NewsArticle record for the most similar processed article
+            article_response = supabase.client.table("NewsArticle").select("*").eq("NewsResult", most_similar.get("uniqueName")).execute()
+            if not article_response.data or len(article_response.data) == 0:
+                print(f"No NewsArticle record found for {most_similar.get('uniqueName')}")
+                continue
+            
+            existing_article = article_response.data[0]
+            
+            # Get the source content for the unprocessed article
+            unprocessed_source_url = unprocessed.get("url")
+            
+            # Get existing source content
+            existing_source_urls = [existing_article.get("sourceURL")]
+            
+            # Add any additional sources from the similar articles
+            for similar in similar_processed:
+                if similar["article"].get("url") not in existing_source_urls:
+                    existing_source_urls.append(similar["article"].get("url"))
+            
+            # Generate new article content by combining sources
+            print(f"Combining content from {len(existing_source_urls)} sources...")
+            
+            # Create a list of all sources for the combined content
+            all_source_urls = existing_source_urls + [unprocessed_source_url]
+            all_source_urls_str = "\n".join(all_source_urls)
+            
+            # Use LLM to generate combined content
+            try:
+                # Generate combined English content
+                english_prompt = f"""
+                I have multiple news articles about the same event or topic. Please create a comprehensive, 
+                updated article by combining information from all sources. The article should be in English, 
+                well-structured, and maintain a professional journalistic style. 
+                Keep the most essential and newest information, avoid redundancy, and ensure all key details are included.
+                
+                The sources are:
+                {all_source_urls_str}
+                
+                The existing article content is:
+                {existing_article.get('EnglishArticle', '')}
+                
+                Create an updated and enhanced version that incorporates new information from the other sources.
+                """
+                
+                combined_english_content = llm.generate(english_prompt).strip()
+                
+                # Generate combined German content
+                german_prompt = f"""
+                I have multiple news articles about the same event or topic. Please create a comprehensive, 
+                updated article by combining information from all sources. The article should be in German, 
+                well-structured, and maintain a professional journalistic style.
+                Keep the most essential and newest information, avoid redundancy, and ensure all key details are included.
+                
+                The sources are:
+                {all_source_urls_str}
+                
+                The existing article content is:
+                {existing_article.get('GermanArticle', '')}
+                
+                Create an updated and enhanced version in German that incorporates new information from the other sources.
+                """
+                
+                combined_german_content = llm.generate(german_prompt).strip()
+                
+                # Update the existing article
+                updates = {
+                    "EnglishArticle": combined_english_content,
+                    "GermanArticle": combined_german_content,
+                    "status": "UPDATED",
+                    # Keep existing headlines
+                    "sourceURL": ", ".join(all_source_urls)  # Combine all source URLs
+                }
+                
+                # Update the article
+                article_id = existing_article.get("id")
+                if update_article(supabase, article_id, updates):
+                    print(f"Successfully updated article {article_id} with combined content")
+                    
+                    # Mark the unprocessed article as processed
+                    supabase.client.table("NewsResults").update({"isProcessed": True}).eq("id", unprocessed.get("id")).execute()
+                    print(f"Marked unprocessed article {unprocessed.get('uniqueName')} as processed")
+                else:
+                    print(f"Failed to update article {article_id}")
+                
+            except Exception as e:
+                print(f"Error generating combined content: {e}")
+                continue
+
+def cosine_similarity(embedding1, embedding2):
+    """
+    Calculate cosine similarity between two embedding vectors.
+    
+    Args:
+        embedding1: First embedding vector
+        embedding2: Second embedding vector
+        
+    Returns:
+        Cosine similarity score between 0 and 1
+    """
+    # Convert to numpy arrays if they aren't already
+    vec1 = np.array(embedding1)
+    vec2 = np.array(embedding2)
+    
+    # Calculate cosine similarity
+    dot_product = np.dot(vec1, vec2)
+    norm_1 = np.linalg.norm(vec1)
+    norm_2 = np.linalg.norm(vec2)
+    
+    if norm_1 == 0 or norm_2 == 0:
+        return 0  # Handle zero vectors
+        
+    return dot_product / (norm_1 * norm_2)
 
 def main():
     load_dotenv()
