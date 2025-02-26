@@ -52,17 +52,72 @@ class detectTeam:
         return response_text
 
     def detect_team(self, article_content: str) -> dict:
+        # Initial team detection
         prompt = self.prompts['team_detection_prompt'].format(article_content=article_content)
         raw_response = self.call_openai_api(prompt)
         raw_response = self.strip_markdown(raw_response)
         try:
             result = json.loads(raw_response)
-            team = result.get("team", "").strip()
+            team_value = result.get("team", "").strip()
             confidence = float(result.get("confidence", 0))
-            return {"team": team, "confidence": confidence}
+            
+            # Check if confidence is too low - prefer "others" for uncertain cases
+            if confidence < 0.6:
+                return {"team": "others", "confidence": confidence}
+                
+            # Multiple teams check
+            teams = [t.strip() for t in team_value.split(",") if t.strip()]
+            if len(teams) != 1:
+                return {"team": "others", "confidence": confidence}
+                
+            # Always perform refinement analysis for more reliable detection
+            refinement_prompt = self.prompts.get('team_refinement_prompt', None)
+            if refinement_prompt:
+                formatted_refinement = refinement_prompt.format(
+                    article_content=article_content, 
+                    team_candidate=team_value
+                )
+                raw_refinement = self.call_openai_api(formatted_refinement)
+                raw_refinement = self.strip_markdown(raw_refinement)
+                try:
+                    refinement_result = json.loads(raw_refinement)
+                    is_consistent = refinement_result.get("is_consistent", False)
+                    primary_team = refinement_result.get("primary_team", "").strip().lower()
+                    
+                    # If refinement says it's not consistent with the initial team
+                    if not is_consistent:
+                        # Use the primary_team from refinement if provided and valid
+                        if primary_team and primary_team != "others":
+                            # Verify primary_team is in our allowed list
+                            allowed_teams = [
+                                'chiefs', 'browns', 'ravens', 'steelers', 'bengals', 'bills', 
+                                'dolphins', 'jets', 'patriots', 'texans', 'colts', 'jaguars', 
+                                'titans', 'chargers', 'broncos', 'raiders', 'lions', 'vikings', 
+                                'packers', 'bears', 'eagles', 'commanders', 'cowboys', 'giants', 
+                                'buccaneers', 'falcons', 'saints', 'panthers', 'rams', 'seahawks', 
+                                'cardinals', '49ers'
+                            ]
+                            if primary_team in allowed_teams:
+                                return {"team": primary_team, "confidence": 0.8}  # Higher confidence from refinement
+                        
+                        # If primary_team isn't valid, default to "others"
+                        return {"team": "others", "confidence": confidence}
+                    
+                    # The initial team is correct
+                    return {"team": team_value, "confidence": max(confidence, 0.8)}  # Boost confidence after refinement
+                except Exception as e:
+                    print(f"Error refining team detection: {e}")
+                    # Fall back to the initial detection with original confidence
+            
+            # If we couldn't run refinement, return the original detection
+            return {"team": team_value, "confidence": confidence}
         except Exception as e:
             print(f"Error detecting team: {e}")
-            return {"team": "", "confidence": 0}
+            return {"team": "others", "confidence": 0}
+            
+    def get_article_length(self, article_content: str) -> int:
+        """Calculate the length of the article in words"""
+        return len(article_content.split())
 
     async def process_article(self, article_key: str, article_data: dict):
         content = article_data.get("content", "")
