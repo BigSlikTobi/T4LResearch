@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Article Status Update workflow
-        uses: benc-uk/workflow-dispatch@v1
+        uses: peter-evans/repository-dispatch@v2
         with:
-          workflow: Update Article Statuses
-          ref: main
+          event-type: update-article-status
           token: ${{ secrets.ACTIONS_PAT }}

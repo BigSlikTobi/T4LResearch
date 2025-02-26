@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Sequential Pipeline workflow
-        uses: benc-uk/workflow-dispatch@v1
+        uses: peter-evans/repository-dispatch@v2
         with:
-          workflow: Run Sequential Pipeline (Fetcher)
-          ref: main
+          event-type: run-sequential-pipeline
           token: ${{ secrets.ACTIONS_PAT }}

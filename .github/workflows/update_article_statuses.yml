@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: '0 */2 * * *'  # Run every 2 hours
   workflow_dispatch:  # Allow manual trigger
+  repository_dispatch:
+    types: [update-article-status]
 
 jobs:
   update-statuses:
@@ -15,6 +17,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        ref: main  # Ensure we're using the main branch
       
     - name: Set up Python
       uses: actions/setup-python@v4
