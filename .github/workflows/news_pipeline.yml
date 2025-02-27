@@ -101,8 +101,7 @@ EOF
           
       - name: Run sequential pipeline
         run: |
-          python -m createArticles.runSequentialPipeline || echo "Sequential pipeline completed with errors"
-
+          python -m createArticles.runSequentialPipeline
   update_article_status:
     name: Update Article Status
     runs-on: ubuntu-latest
