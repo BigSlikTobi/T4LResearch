@@ -70,7 +70,7 @@ except Exception as e:
     print("0")  # Default to 0 if there's an error
 EOF
           # Run the script and capture the output
-          COUNT=$(python check_unprocessed.py | tail -n 1)
+          COUNT=$(python check_unprocessed.py)
           echo "Found $COUNT unprocessed articles"
           echo "unprocessed_count=$COUNT" >> $GITHUB_OUTPUT
     
