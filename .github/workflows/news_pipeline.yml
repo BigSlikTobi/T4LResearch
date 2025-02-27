@@ -1,0 +1,94 @@
+name: T4L News Processing Pipeline
+
+# This workflow will only run on the main branch
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Run every 20 minutes
+    - cron: '*/20 * * * *'
+  workflow_dispatch:  # Allow manual triggering when needed
+
+jobs:
+  fetch_news:
+    name: Fetch News
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Fetch news articles
+        id: fetch_news
+        run: |
+          # Run the fetch news script
+          python -m getArticles.fetchNews
+          
+          # Check if news articles were fetched by examining any unprocessed articles
+          UNPROCESSED_COUNT=$(python -c "from supabase_init import SupabaseClient; from fetchUnprocessedArticles import get_unprocessed_articles; client = SupabaseClient(); print(len(get_unprocessed_articles()))")
+          echo "UNPROCESSED_COUNT=$UNPROCESSED_COUNT" >> $GITHUB_ENV
+          echo "unprocessed_count=$UNPROCESSED_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "Unprocessed articles found: $UNPROCESSED_COUNT"
+    
+    outputs:
+      unprocessed_count: ${{ steps.fetch_news.outputs.unprocessed_count }}
+
+  run_sequential_pipeline:
+    name: Process Articles
+    runs-on: ubuntu-latest
+    needs: fetch_news
+    if: needs.fetch_news.outputs.unprocessed_count > 0  # Only run if there are unprocessed articles
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run sequential pipeline
+        run: |
+          python -m createArticles.runSequentialPipeline
+
+  update_article_status:
+    name: Update Article Status
+    runs-on: ubuntu-latest
+    needs: run_sequential_pipeline
+    if: always()  # Run even if previous job failed, since we want to update statuses anyway
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Update article statuses
+        run: |
+          python -c "from createArticles.storeInDB import update_article_statuses; update_article_statuses()"
