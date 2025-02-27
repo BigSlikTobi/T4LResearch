@@ -48,9 +48,8 @@ jobs:
       - name: Fetch news articles
         id: fetch_news
         run: |
-          # Run the fetch news script - continue even if there are errors
-          python -m getArticles.fetchNews || echo "Fetch news completed with errors"
-          
+          # Run the fetch news script - capture and log detailed error output
+          python -m getArticles.fetchNews 2>&1 | tee fetch_news.log || (echo "Fetch news completed with errors. See fetch_news.log for details." && cat fetch_news.log >&2)
           # Create a simple Python script to check unprocessed articles and handle errors
           cat > check_unprocessed.py << 'EOF'
 import sys
