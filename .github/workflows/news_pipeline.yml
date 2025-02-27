@@ -9,6 +9,12 @@ on:
     - cron: '*/20 * * * *'
   workflow_dispatch:  # Allow manual triggering when needed
 
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
 jobs:
   fetch_news:
     name: Fetch News
@@ -36,7 +42,7 @@ jobs:
           python -m getArticles.fetchNews
           
           # Check if news articles were fetched by examining any unprocessed articles
-          UNPROCESSED_COUNT=$(python -c "from supabase_init import SupabaseClient; from fetchUnprocessedArticles import get_unprocessed_articles; client = SupabaseClient(); print(len(get_unprocessed_articles()))")
+          UNPROCESSED_COUNT=$(python -c "from supabase_init import SupabaseClient; from createArticles.fetchUnprocessedArticles import get_unprocessed_articles; client = SupabaseClient(); print(len(get_unprocessed_articles()))")
           echo "UNPROCESSED_COUNT=$UNPROCESSED_COUNT" >> $GITHUB_ENV
           echo "unprocessed_count=$UNPROCESSED_COUNT" >> $GITHUB_OUTPUT
           
