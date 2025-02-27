@@ -53,21 +53,20 @@ jobs:
           
           # Create a simple Python script to check unprocessed articles and handle errors
           cat > check_unprocessed.py << 'EOF'
-          import sys
-          try:
-              from supabase_init import SupabaseClient
-              from createArticles.fetchUnprocessedArticles import get_unprocessed_articles
-              
-              client = SupabaseClient()
-              unprocessed = get_unprocessed_articles()
-              count = len(unprocessed)
-              print(f"Found {count} unprocessed articles")
-              print(count)
-          except Exception as e:
-              print(f"Error checking unprocessed articles: {e}", file=sys.stderr)
-              print("0")  # Default to 0 if there's an error
-          EOF
-          
+import sys
+try:
+    from supabase_init import SupabaseClient
+    from createArticles.fetchUnprocessedArticles import get_unprocessed_articles
+    
+    client = SupabaseClient()
+    unprocessed = get_unprocessed_articles()
+    count = len(unprocessed)
+    print(f"Found {count} unprocessed articles")
+    print(count)
+except Exception as e:
+    print(f"Error checking unprocessed articles: {e}", file=sys.stderr)
+    print("0")  # Default to 0 if there's an error
+EOF
           # Run the script and capture the output
           COUNT=$(python check_unprocessed.py | tail -n 1)
           echo "Found $COUNT unprocessed articles"
