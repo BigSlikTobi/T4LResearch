@@ -130,4 +130,12 @@ EOF
           
       - name: Update article statuses
         run: |
-          python -c "from createArticles.storeInDB import update_article_statuses; update_article_statuses()" || echo "Update article status completed with errors"
+          python -c "
+          import traceback
+          from createArticles.storeInDB import update_article_statuses
+          try:
+              update_article_statuses()
+          except Exception as e:
+              print('Update article status failed with error:', e)
+              traceback.print_exc()
+          "
