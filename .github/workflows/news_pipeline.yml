@@ -40,11 +40,14 @@ jobs:
           
       - name: Debug environment
         run: |
-          echo "SUPABASE_URL is set: ${{ env.SUPABASE_URL != '' }}"
-          echo "SUPABASE_KEY is set: ${{ env.SUPABASE_KEY != '' }}"
-          echo "OPENAI_API_KEY is set: ${{ env.OPENAI_API_KEY != '' }}"
-          echo "GEMINI_API_KEY is set: ${{ env.GEMINI_API_KEY != '' }}"
-          
+          SUPABASE_URL_SET=$([ -n "${{ env.SUPABASE_URL }}" ] && echo "true" || echo "false")
+          SUPABASE_KEY_SET=$([ -n "${{ env.SUPABASE_KEY }}" ] && echo "true" || echo "false")
+          OPENAI_API_KEY_SET=$([ -n "${{ env.OPENAI_API_KEY }}" ] && echo "true" || echo "false")
+          GEMINI_API_KEY_SET=$([ -n "${{ env.GEMINI_API_KEY }}" ] && echo "true" || echo "false")
+          echo "SUPABASE_URL is set: $SUPABASE_URL_SET"
+          echo "SUPABASE_KEY is set: $SUPABASE_KEY_SET"
+          echo "OPENAI_API_KEY is set: $OPENAI_API_KEY_SET"
+          echo "GEMINI_API_KEY is set: $GEMINI_API_KEY_SET"
       - name: Fetch news articles
         id: fetch_news
         run: |
