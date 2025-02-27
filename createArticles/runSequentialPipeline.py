@@ -26,6 +26,64 @@ def cosine_similarity(vec1: list, vec2: list) -> float:
         return 0.0
     return dot / (norm1 * norm2)
 
+async def check_for_similar_articles(unprocessed_article):
+    """
+    Check if there are similar articles to the unprocessed article.
+    Returns True if similar articles found and processed, False otherwise.
+    """
+    print(f"Checking if article {unprocessed_article.get('uniqueName')} has similar processed articles...")
+    
+    # Run similarity check for just this article
+    threshold = 0.89  # Use the same threshold as in run_similarity_check.py
+    supabase = SupabaseClient()
+    
+    # Get processed news results with embeddings
+    processed_response = supabase.client.table("NewsResults").select("*").eq("isProcessed", True).execute()
+    if not processed_response.data:
+        print("No processed articles to compare against.")
+        return False
+    
+    processed_articles = processed_response.data
+    
+    # Skip articles without embeddings
+    if not unprocessed_article.get("embedding"):
+        print(f"Article {unprocessed_article.get('uniqueName')} has no embedding, skipping similarity check.")
+        return False
+    
+    unprocessed_embedding = unprocessed_article.get("embedding")
+    
+    # Find similar processed articles
+    similar_processed = []
+    for processed in processed_articles:
+        if not processed.get("embedding"):
+            continue
+            
+        processed_embedding = processed.get("embedding")
+        
+        # Verify both embeddings have the same dimensions
+        if len(unprocessed_embedding) != len(processed_embedding):
+            continue
+        
+        # Calculate cosine similarity
+        try:
+            similarity = cosine_similarity(unprocessed_embedding, processed_embedding)
+            if similarity >= threshold:
+                similar_processed.append({
+                    "article": processed,
+                    "similarity": similarity
+                })
+                print(f"Found similar article with similarity score: {similarity:.4f} - ID: {processed.get('uniqueName')}")
+        except Exception as e:
+            print(f"Error calculating similarity: {e}")
+            continue
+    
+    if similar_processed:
+        print(f"Found {len(similar_processed)} similar articles to {unprocessed_article.get('uniqueName')}, running update...")
+        await check_similarity_and_update(threshold=threshold)
+        return True
+    
+    return False
+
 def group_similar_articles(new_articles: list, existing_articles: list, threshold: float = 0.85) -> list:
     """
     Group articles based on the similarity of their embedding vectors.
@@ -96,6 +154,17 @@ async def process_article_group(article_group: list):
     combined_keywords = set()
     existing_article = None
     
+    # Check if there's an exact similar article first - this should take precedence
+    for article in article_group:
+        if "Status" not in article:  # This is a new article
+            is_similar = await check_for_similar_articles(article)
+            if is_similar:
+                print(f"Article {article['uniqueName']} was processed by similarity check, skipping normal processing.")
+                # Mark all articles in the group as processed
+                for a in article_group:
+                    mark_article_as_processed(a["id"])
+                return
+    
     # Identify if there's an existing article in the group
     for article in article_group:
         if "Status" in article:  # This indicates it's an existing article
@@ -164,11 +233,17 @@ async def process_article_group(article_group: list):
             "url": existing_article["imageSource"],
             "imageAttribution": existing_article["imageAttribution"]
         }
+        
+        # Add current timestamp for the update
+        import datetime
+        current_time = datetime.datetime.now().isoformat()
+        
         # Update the existing article
         record_to_update = {
             "EnglishArticle": english_data["content"],
             "GermanArticle": german_data["content"],
-            "Status": "UPDATED"
+            "Status": "UPDATED",
+            "created_at": current_time  # Update the creation date to reflect update time
         }
         try:
             supabase_client.client.table("NewsArticle")\
@@ -214,30 +289,62 @@ async def check_processed_articles_similarity():
     This handles the scenario of finding similar articles between those that were
     already processed (isProcessed = true) but weren't caught in the initial grouping.
     """
+    print("\n===== STARTING EXTENDED SIMILARITY CHECK =====")
     print("Running extended similarity check between new and processed articles...")
-    await check_similarity_and_update(threshold=0.85)
+    # Use the same threshold as in the review.py file (0.75)
+    await check_similarity_and_update(threshold=0.75)
+    print("===== COMPLETED EXTENDED SIMILARITY CHECK =====\n")
 
 async def main():
-    # Get both unprocessed and active articles
-    unprocessed_articles, active_articles = get_all_active_news()
-    
-    if not unprocessed_articles:
-        print("No unprocessed articles found.")
-        return
+    try:
+        # First run similarity check on any unprocessed articles to update existing ones
+        # This ensures that we don't create duplicates when similar articles already exist
+        await check_similarity_and_update(threshold=0.89)
         
-    # Group similar articles, now considering both new and existing articles
-    groups = group_similar_articles(unprocessed_articles, active_articles, threshold=0.85)
-    print(f"Found {len(groups)} group(s) of similar articles.")
+        # Get both unprocessed and active articles
+        unprocessed_articles, active_articles = get_all_active_news()
+        
+        if not unprocessed_articles:
+            print("No unprocessed articles found.")
+            # Even if no unprocessed articles were found, still run the similarity check
+            print("Running similarity check on existing articles...")
+            await check_processed_articles_similarity()
+            return
+            
+        # Group similar articles, now considering both new and existing articles
+        groups = group_similar_articles(unprocessed_articles, active_articles, threshold=0.85)
+        print(f"Found {len(groups)} group(s) of similar articles.")
+        
+        # Process each group sequentially
+        for group in groups:
+            try:
+                group_ids = [article["id"] for article in group]
+                print(f"\nProcessing group with article IDs: {group_ids}")
+                await process_article_group(group)
+            except Exception as e:
+                print(f"Error processing article group {group_ids}: {e}")
+                import traceback
+                print(f"Exception traceback: {traceback.format_exc()}")
+                # Continue with next group even if this one fails
+                continue
     
-    # Process each group sequentially
-    for group in groups:
-        group_ids = [article["id"] for article in group]
-        print(f"\nProcessing group with article IDs: {group_ids}")
-        await process_article_group(group)
+    except Exception as e:
+        print(f"Error in main processing pipeline: {e}")
+        import traceback
+        print(f"Exception traceback: {traceback.format_exc()}")
     
-    # After processing all groups, run an additional check for similarity
-    # between newly created articles and already processed ones
-    await check_processed_articles_similarity()
+    finally:
+        # Always run the extended similarity check, even if there were errors
+        print("\n========= RUNNING FINAL SIMILARITY CHECK =========")
+        print("This check will find similar articles between newly processed and existing articles.")
+        try:
+            await check_processed_articles_similarity()
+        except Exception as e:
+            print(f"Error in extended similarity check: {e}")
+            import traceback
+            print(f"Exception traceback: {traceback.format_exc()}")
+        
+        print("\nPipeline completed.")
 
 if __name__ == "__main__":
     asyncio.run(main())
