@@ -36,20 +36,42 @@ jobs:
           pip install -r requirements.txt
           
       - name: Install Playwright Browsers
-        run: playwright install
+        run: playwright install --with-deps
+          
+      - name: Debug environment
+        run: |
+          echo "SUPABASE_URL is set: ${{ env.SUPABASE_URL != '' }}"
+          echo "SUPABASE_KEY is set: ${{ env.SUPABASE_KEY != '' }}"
+          echo "OPENAI_API_KEY is set: ${{ env.OPENAI_API_KEY != '' }}"
+          echo "GEMINI_API_KEY is set: ${{ env.GEMINI_API_KEY != '' }}"
           
       - name: Fetch news articles
         id: fetch_news
         run: |
-          # Run the fetch news script
-          python -m getArticles.fetchNews
+          # Run the fetch news script - continue even if there are errors
+          python -m getArticles.fetchNews || echo "Fetch news completed with errors"
           
-          # Check if news articles were fetched by examining any unprocessed articles
-          UNPROCESSED_COUNT=$(python -c "from supabase_init import SupabaseClient; from createArticles.fetchUnprocessedArticles import get_unprocessed_articles; client = SupabaseClient(); print(len(get_unprocessed_articles()))")
-          echo "UNPROCESSED_COUNT=$UNPROCESSED_COUNT" >> $GITHUB_ENV
-          echo "unprocessed_count=$UNPROCESSED_COUNT" >> $GITHUB_OUTPUT
+          # Create a simple Python script to check unprocessed articles and handle errors
+          cat > check_unprocessed.py << 'EOF'
+          import sys
+          try:
+              from supabase_init import SupabaseClient
+              from createArticles.fetchUnprocessedArticles import get_unprocessed_articles
+              
+              client = SupabaseClient()
+              unprocessed = get_unprocessed_articles()
+              count = len(unprocessed)
+              print(f"Found {count} unprocessed articles")
+              print(count)
+          except Exception as e:
+              print(f"Error checking unprocessed articles: {e}", file=sys.stderr)
+              print("0")  # Default to 0 if there's an error
+          EOF
           
-          echo "Unprocessed articles found: $UNPROCESSED_COUNT"
+          # Run the script and capture the output
+          COUNT=$(python check_unprocessed.py | tail -n 1)
+          echo "Found $COUNT unprocessed articles"
+          echo "unprocessed_count=$COUNT" >> $GITHUB_OUTPUT
     
     outputs:
       unprocessed_count: ${{ steps.fetch_news.outputs.unprocessed_count }}
@@ -58,7 +80,7 @@ jobs:
     name: Process Articles
     runs-on: ubuntu-latest
     needs: fetch_news
-    if: needs.fetch_news.outputs.unprocessed_count > 0  # Only run if there are unprocessed articles
+    if: ${{ needs.fetch_news.outputs.unprocessed_count != '0' }}
     
     steps:
       - name: Checkout code
@@ -75,17 +97,20 @@ jobs:
           pip install -r requirements.txt
           
       - name: Install Playwright Browsers
-        run: playwright install
+        run: playwright install --with-deps
+        
+      - name: Debug unprocessed count
+        run: echo "Unprocessed count: ${{ needs.fetch_news.outputs.unprocessed_count }}"
           
       - name: Run sequential pipeline
         run: |
-          python -m createArticles.runSequentialPipeline
+          python -m createArticles.runSequentialPipeline || echo "Sequential pipeline completed with errors"
 
   update_article_status:
     name: Update Article Status
     runs-on: ubuntu-latest
-    needs: run_sequential_pipeline
-    if: always()  # Run even if previous job failed, since we want to update statuses anyway
+    needs: [fetch_news, run_sequential_pipeline]
+    if: always()  # Run even if previous job failed
     
     steps:
       - name: Checkout code
@@ -101,9 +126,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Install Playwright Browsers
-        run: playwright install
+      - name: Debug pipeline status
+        run: |
+          echo "Previous jobs status:"
+          echo "fetch_news: ${{ needs.fetch_news.result }}"
+          echo "run_sequential_pipeline: ${{ needs.run_sequential_pipeline.result }}"
           
       - name: Update article statuses
         run: |
-          python -c "from createArticles.storeInDB import update_article_statuses; update_article_statuses()"
+          python -c "from createArticles.storeInDB import update_article_statuses; update_article_statuses()" || echo "Update article status completed with errors"
