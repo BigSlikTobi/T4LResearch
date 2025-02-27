@@ -4,11 +4,41 @@ import re
 import requests
 from dotenv import load_dotenv
 import urllib.parse
+import openai
+
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from supabase_init import SupabaseClient
 from LLMSetup import initialize_model
 import numpy as np
+
+def generate_text_with_model(model_dict, prompt):
+    """
+    Generate text using the model returned by initialize_model().
+    Handles different model structures.
+    """
+    try:
+        provider = model_dict.get("provider", "").lower()
+        if provider == "openai":
+            from openai import OpenAI
+            openai_client = OpenAI(api_key=model_dict.get("model", {}).get("api_key"))
+            response = openai_client.chat.completions.create(
+                model=model_dict.get("model_name", "gpt-4o-mini"),
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content
+        elif provider == "gemini":
+            gemini_model = model_dict.get("model")
+            if hasattr(gemini_model, "generate_content"):
+                response = gemini_model.generate_content(prompt)
+                return response.text
+        
+        raise ValueError(f"Unsupported model provider: {provider}")
+    except Exception as e:
+        print(f"Error generating text with model: {e}")
+        import traceback
+        print(f"Exception traceback: {traceback.format_exc()}")
+        raise
 
 def clean_text(text: str) -> str:
     """Remove all '\n' sequences, clean up spacing, and remove leading quotes."""
@@ -250,7 +280,7 @@ async def delete_article_and_update_news_result(supabase, record_id: int, news_r
     except Exception as e:
         print(f"Error during cleanup of invalid article: {e}")
 
-async def check_similarity_and_update(threshold=0.85):
+async def check_similarity_and_update(threshold=0.89):
     """
     Check for similarity between unprocessed news results and processed articles.
     If similar articles are found, combine their content and update the existing article.
@@ -258,29 +288,43 @@ async def check_similarity_and_update(threshold=0.85):
     Args:
         threshold: Cosine similarity threshold for considering articles as similar (0-1)
     """
-    print("Starting similarity check between unprocessed and processed articles...")
+    print("\n===== SIMILARITY CHECK =====")
+    print(f"Starting similarity check between unprocessed and processed articles with threshold: {threshold}...")
     supabase = SupabaseClient()
-    llm = initialize_model("openai")  # Use OpenAI for processing combined text
+    llm_dict = initialize_model("openai")  # Use OpenAI for processing combined text
     
     # Get unprocessed news results with embeddings
     unprocessed_response = supabase.client.table("NewsResults").select("*").eq("isProcessed", False).execute()
     if not unprocessed_response.data:
         print("No unprocessed articles to check.")
+        print("===== SIMILARITY CHECK COMPLETE =====\n")
         return
     
     unprocessed_articles = unprocessed_response.data
     print(f"Found {len(unprocessed_articles)} unprocessed articles to check.")
     
+    # Count articles with embeddings
+    unprocessed_with_embeddings = [a for a in unprocessed_articles if a.get("embedding")]
+    print(f"Of these, {len(unprocessed_with_embeddings)} have embeddings ({len(unprocessed_articles) - len(unprocessed_with_embeddings)} missing embeddings).")
+    
     # Get processed news results with embeddings
     processed_response = supabase.client.table("NewsResults").select("*").eq("isProcessed", True).execute()
     if not processed_response.data:
         print("No processed articles to compare against.")
+        print("===== SIMILARITY CHECK COMPLETE =====\n")
         return
     
     processed_articles = processed_response.data
+    processed_with_embeddings = [a for a in processed_articles if a.get("embedding")]
     print(f"Found {len(processed_articles)} processed articles to compare against.")
+    print(f"Of these, {len(processed_with_embeddings)} have embeddings ({len(processed_articles) - len(processed_with_embeddings)} missing embeddings).")
+    
+    # Debug output
+    print(f"Starting detailed similarity checks for {len(unprocessed_with_embeddings)} articles with embeddings...")
     
     # Check for similarity between unprocessed and processed articles
+    similar_article_found = False
+    
     for unprocessed in unprocessed_articles:
         print(f"Checking unprocessed article: {unprocessed.get('uniqueName')}")
         
@@ -299,14 +343,23 @@ async def check_similarity_and_update(threshold=0.85):
                 
             processed_embedding = processed.get("embedding")
             
+            # Verify both embeddings have the same dimensions
+            if len(unprocessed_embedding) != len(processed_embedding):
+                print(f"Warning: Embedding dimension mismatch: {len(unprocessed_embedding)} vs {len(processed_embedding)} - skipping comparison")
+                continue
+            
             # Calculate cosine similarity
             try:
                 similarity = cosine_similarity(unprocessed_embedding, processed_embedding)
+                print(f"Similarity with article {processed.get('id')}: {similarity:.4f}")
+                
                 if similarity >= threshold:
                     similar_processed.append({
                         "article": processed,
                         "similarity": similarity
                     })
+                    similar_article_found = True
+                    print(f"Found similar article with similarity score: {similarity:.4f} - ID: {processed.get('uniqueName')}")
             except Exception as e:
                 print(f"Error calculating similarity: {e}")
                 continue
@@ -320,11 +373,39 @@ async def check_similarity_and_update(threshold=0.85):
             
             # Get the NewsArticle record for the most similar article
             most_similar = similar_processed[0]["article"]
+            print(f"Most similar article score: {similar_processed[0]['similarity']:.4f}, ID: {most_similar.get('id')}")
             
-            # Get the NewsArticle record for the most similar processed article
-            article_response = supabase.client.table("NewsArticle").select("*").eq("NewsResult", most_similar.get("uniqueName")).execute()
-            if not article_response.data or len(article_response.data) == 0:
-                print(f"No NewsArticle record found for {most_similar.get('uniqueName')}")
+            # Try different approaches to find the associated NewsArticle
+            article_response = None
+            
+            # First try by uniqueName
+            if most_similar.get("uniqueName"):
+                article_response = supabase.client.table("NewsArticle").select("*").eq("NewsResult", most_similar.get("uniqueName")).execute()
+            
+            # If no results, try by ID
+            if not article_response or not article_response.data or len(article_response.data) == 0:
+                print(f"No NewsArticle record found for {most_similar.get("uniqueName")} by uniqueName, trying by ID...")
+                article_response = supabase.client.table("NewsArticle").select("*").eq("NewsResult", str(most_similar.get('id'))).execute()
+            
+            # If still no results, try a broader search
+            if not article_response or not article_response.data or len(article_response.data) == 0:
+                print(f"No NewsArticle record found by ID either, trying a broader search...")
+                article_response = supabase.client.table("NewsArticle").select("*").execute()
+                if (article_response and article_response.data):
+                    # Try to find a match based on the sourceURL containing the uniqueName
+                    for article in article_response.data:
+                        source_url = article.get("sourceURL", "")
+                        if most_similar.get("uniqueName") in source_url or most_similar.get("url") in source_url:
+                            article_response.data = [article]
+                            print(f"Found article by matching sourceURL: {article.get('id')}")
+                            break
+            
+            if not article_response or not article_response.data or len(article_response.data) == 0:
+                print(f"No NewsArticle record found for {most_similar.get("uniqueName")} after all attempts")
+                
+                # Mark the unprocessed article as processed to avoid repeatedly trying to process it
+                supabase.client.table("NewsResults").update({"isProcessed": True}).eq("id", unprocessed.get("id")).execute()
+                print(f"Marked unprocessed article {unprocessed.get('uniqueName')} as processed (no matching article found)")
                 continue
             
             existing_article = article_response.data[0]
@@ -345,7 +426,7 @@ async def check_similarity_and_update(threshold=0.85):
             
             # Create a list of all sources for the combined content
             all_source_urls = existing_source_urls + [unprocessed_source_url]
-            all_source_urls_str = "\n".join(all_source_urls)
+            all_source_urls_str = "\n".join(filter(None, all_source_urls))
             
             # Use LLM to generate combined content
             try:
@@ -365,7 +446,7 @@ async def check_similarity_and_update(threshold=0.85):
                 Create an updated and enhanced version that incorporates new information from the other sources.
                 """
                 
-                combined_english_content = llm.generate(english_prompt).strip()
+                combined_english_content = generate_text_with_model(llm_dict, english_prompt).strip()
                 
                 # Generate combined German content
                 german_prompt = f"""
@@ -383,15 +464,19 @@ async def check_similarity_and_update(threshold=0.85):
                 Create an updated and enhanced version in German that incorporates new information from the other sources.
                 """
                 
-                combined_german_content = llm.generate(german_prompt).strip()
+                combined_german_content = generate_text_with_model(llm_dict, german_prompt).strip()
                 
                 # Update the existing article
+                import datetime
+                current_time = datetime.datetime.now().isoformat()
+                
                 updates = {
                     "EnglishArticle": combined_english_content,
                     "GermanArticle": combined_german_content,
-                    "status": "UPDATED",
+                    "Status": "UPDATED",  # Fixed: Use uppercase "Status" to match schema
                     # Keep existing headlines
-                    "sourceURL": ", ".join(all_source_urls)  # Combine all source URLs
+                    "sourceURL": ", ".join(filter(None, all_source_urls)),  # Combine all source URLs
+                    "created_at": current_time  # Update the creation date to reflect update time
                 }
                 
                 # Update the article
@@ -407,7 +492,14 @@ async def check_similarity_and_update(threshold=0.85):
                 
             except Exception as e:
                 print(f"Error generating combined content: {e}")
+                import traceback
+                print(f"Exception traceback: {traceback.format_exc()}")
                 continue
+    
+    if not similar_article_found:
+        print("No similar articles were found with the current threshold.")
+    
+    print("===== SIMILARITY CHECK COMPLETE =====\n")
 
 def cosine_similarity(embedding1, embedding2):
     """

@@ -19,9 +19,30 @@ model_config = initialize_model("openai")
 model_config["model"]["temperature"] = 0.1
 aclient = AsyncOpenAI(api_key=model_config["model"]["api_key"])
 
-# Load prompts
-with open("prompts.yaml", "r") as f:
-    prompts = yaml.safe_load(f)
+# Get the absolute path to the prompts.yaml file in the same directory as this script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+prompts_file_path = os.path.join(current_dir, "prompts.yaml")
+
+try:
+    # Try to open the prompts file
+    if os.path.exists(prompts_file_path):
+        with open(prompts_file_path, "r") as f:
+            prompts = yaml.safe_load(f)
+    else:
+        # If file doesn't exist, create a default prompts dictionary
+        logger.warning(f"prompts.yaml not found at {prompts_file_path}, using default prompts")
+        prompts = {
+            "image_search": {
+                "ranking": "You are an image selection expert. Rank the following images for a news article about '{query}'. The image should be high quality, relevant to the topic, and suitable for a professional news site. Rank from 1 (best) to {count} (worst). Only respond with a number representing your ranking."
+            }
+        }
+except Exception as e:
+    logger.error(f"Error loading prompts: {e}")
+    prompts = {
+        "image_search": {
+            "ranking": "You are an image selection expert. Rank the following images for a news article about '{query}'. The image should be high quality, relevant to the topic, and suitable for a professional news site. Rank from 1 (best) to {count} (worst). Only respond with a number representing your ranking."
+        }
+    }
 
 # Import KeywordExtractor to extract keywords instead of relying solely on LLM query generation
 from keyword_extractor import KeywordExtractor
