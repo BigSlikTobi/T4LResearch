@@ -1,15 +1,22 @@
 import asyncio
 import math
-from fetchUnprocessedArticles import get_all_active_news
-from extractContent import extract_main_content
-from relatedArticles import process_source_article
-from englishArticle import generate_english_article
-from germanArticle import generate_german_article
-from getImage import search_image
-from storeInDB import create_news_article_record, mark_article_as_processed
-from keyword_extractor import KeywordExtractor
+import sys
+import os
+
+# Add the parent directory to the Python path to allow for absolute imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from createArticles.fetchUnprocessedArticles import get_all_active_news
+from createArticles.extractContent import extract_main_content
+from createArticles.relatedArticles import process_source_article
+from createArticles.englishArticle import generate_english_article
+from createArticles.germanArticle import generate_german_article
+from createArticles.getImage import search_image
+from createArticles.storeInDB import create_news_article_record, mark_article_as_processed
+from createArticles.keyword_extractor import KeywordExtractor
 from LLMSetup import initialize_model
-from review import clean_text, review_article_fields, check_similarity_and_update
+# Updated import to use the new review package structure
+from createArticles.review import clean_text, review_article_fields, check_similarity_and_update
 from supabase_init import SupabaseClient
 
 # Initialize the KeywordExtractor with the OpenAI model
@@ -79,8 +86,10 @@ async def check_for_similar_articles(unprocessed_article):
     
     if similar_processed:
         print(f"Found {len(similar_processed)} similar articles to {unprocessed_article.get('uniqueName')}, running update...")
-        await check_similarity_and_update(threshold=threshold)
-        return True
+        # Pass the article's ID to check if it was processed
+        processed_ids = await check_similarity_and_update(threshold=threshold)
+        # Return True if this article ID is in the processed IDs list
+        return unprocessed_article.get("id") in processed_ids
     
     return False
 
@@ -246,18 +255,31 @@ async def process_article_group(article_group: list):
             "created_at": current_time  # Update the creation date to reflect update time
         }
         try:
+            # Update the existing article
             supabase_client.client.table("NewsArticle")\
                 .update(record_to_update)\
                 .eq("id", existing_article["id"])\
                 .execute()
             print(f"Updated existing article {existing_article['id']} with new content")
             
-            # Mark all new articles in the group as processed
-            for article in article_group:
-                if "Status" not in article:  # Only mark new articles
-                    mark_article_as_processed(article["id"])
+            # NEW: Run review on the updated article to ensure it passes validation
+            review_passed = await review_article_fields(existing_article["id"], 
+                                                       existing_article.get("uniqueName", str(existing_article["id"])))
+            
+            # Only mark as processed if the review passed
+            if review_passed:
+                print(f"Updated article {existing_article['id']} passed review")
+                # Mark all new articles in the group as processed
+                for article in article_group:
+                    if "Status" not in article:  # Only mark new articles
+                        mark_article_as_processed(article["id"])
+            else:
+                print(f"Updated article {existing_article['id']} failed review - not marking as processed")
+                
         except Exception as e:
             print(f"Error updating existing article: {e}")
+            import traceback
+            print(f"Exception traceback: {traceback.format_exc()}")
     else:
         # Handle completely new article group
         print("Searching for image for combined content...")
@@ -299,7 +321,7 @@ async def main():
     try:
         # First run similarity check on any unprocessed articles to update existing ones
         # This ensures that we don't create duplicates when similar articles already exist
-        await check_similarity_and_update(threshold=0.89)
+        processed_ids = await check_similarity_and_update(threshold=0.89)
         
         # Get both unprocessed and active articles
         unprocessed_articles, active_articles = get_all_active_news()
@@ -309,6 +331,15 @@ async def main():
             # Even if no unprocessed articles were found, still run the similarity check
             print("Running similarity check on existing articles...")
             await check_processed_articles_similarity()
+            return
+            
+        # Filter out articles that were already processed by similarity check
+        if processed_ids:
+            unprocessed_articles = [a for a in unprocessed_articles if a["id"] not in processed_ids]
+            print(f"Filtered out {len(processed_ids)} articles already processed by similarity check")
+            
+        if not unprocessed_articles:
+            print("All unprocessed articles were handled by similarity check.")
             return
             
         # Group similar articles, now considering both new and existing articles
