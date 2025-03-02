@@ -6,6 +6,12 @@ import os
 import dotenv
 import sys
 import yaml
+from createArticles.keyword_extractor import KeywordExtractor
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Add parent directory to path to import LLMSetup
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -45,7 +51,7 @@ except Exception as e:
     }
 
 # Import KeywordExtractor to extract keywords instead of relying solely on LLM query generation
-from keyword_extractor import KeywordExtractor
+from createArticles.keyword_extractor import KeywordExtractor
 
 async def generate_search_query(article_content: str, keywords: list = None) -> str:
     """
