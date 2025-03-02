@@ -16,7 +16,7 @@ def clean_text(text: str) -> str:
     # Replace multiple spaces with a single space
     cleaned = re.sub(r'\s+', ' ', cleaned)
     # Remove leading quotes and space after quote if present
-    cleaned = re.sub(r'^[""]\s*', '', cleaned)
+    cleaned = re.sub(r'^"+\s*', '', cleaned)
     # Final trim
     cleaned = cleaned.strip()
     
