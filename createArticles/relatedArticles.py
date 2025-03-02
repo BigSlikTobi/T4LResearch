@@ -5,8 +5,8 @@ import asyncio
 import nest_asyncio
 import random
 from duckduckgo_search import DDGS
-from keyword_extractor import KeywordExtractor
-from content_extractor import ContentExtractor
+from createArticles.keyword_extractor import KeywordExtractor
+from createArticles.content_extractor import ContentExtractor
 from asyncio import sleep
 
 # Add parent directory to Python path
