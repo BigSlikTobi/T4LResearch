@@ -34,4 +34,4 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        # Add any other environment variables the script needs
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
