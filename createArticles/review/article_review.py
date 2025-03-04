@@ -13,6 +13,7 @@ from supabase_init import SupabaseClient
 from .text_utils import clean_text
 from .image_utils import verify_image_accessibility
 from .db_utils import update_article, delete_article_and_update_news_result
+from createArticles.getImage import search_image  # Fixed import path
 
 async def review_article_fields(record_id: int, news_result_unique_name: str) -> bool:
     """
@@ -56,8 +57,6 @@ async def review_article_fields(record_id: int, news_result_unique_name: str) ->
         
         # Try to find backup images using the article content and keywords
         try:
-            from getImage import search_image
-            
             # Use article content and headline to generate new search keywords
             content = article.get("EnglishArticle", "")
             headline = article.get("EnglishHeadline", "")

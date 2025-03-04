@@ -74,6 +74,9 @@ async def process_article_group(article_group: list):
     """
     Process a group of similar articles by combining their content and related background articles.
     Now handles updating existing articles.
+    
+    Returns:
+        tuple: (processed_news_result_ids, news_article_ids) - Lists containing the IDs of processed NewsResults and corresponding NewsArticles
     """
     # Check if there's an exact similar article first - this should take precedence
     for article in article_group:
@@ -82,9 +85,11 @@ async def process_article_group(article_group: list):
             if is_similar:
                 print(f"Article {article['uniqueName']} was processed by similarity check, skipping normal processing.")
                 # Mark all articles in the group as processed
-                for a in article_group:
-                    mark_article_as_processed(a["id"])
-                return
+                processed_ids = [a["id"] for a in article_group]
+                for a_id in processed_ids:
+                    mark_article_as_processed(a_id)
+                return processed_ids, []
     
     # Use the new content processing pipeline from contentGeneration package
-    await process_content(article_group)
+    # Will return both processed NewsResult IDs and created/updated NewsArticle IDs
+    return await process_content(article_group)

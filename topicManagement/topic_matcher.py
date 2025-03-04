@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import json
 from dotenv import load_dotenv
 from openai import OpenAI
+import traceback
 
 # Add parent directory to Python path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -167,19 +168,48 @@ async def update_article_topic(article_id: int, topic_name: str) -> bool:
         bool: True if update was successful, False otherwise
     """
     try:
+        print(f"\nAttempting to update article {article_id} with topic '{topic_name}'...")
+        
+        # First verify the article exists
+        check_response = supabase_client.table("NewsArticle").select("id", "Topic").eq("id", article_id).execute()
+        if not check_response.data:
+            print(f"Article {article_id} not found in database")
+            return False
+        
+        current_topic = check_response.data[0].get("Topic")
+        print(f"Current topic for article {article_id}: '{current_topic}'")
+        
+        # Attempt the update
+        print(f"Executing update query...")
         response = supabase_client.table("NewsArticle").update({
             "Topic": topic_name
         }).eq("id", article_id).execute()
         
+        # Log the response data
+        print(f"Update response data: {json.dumps(response.data, indent=2)}")
+        
+        # Check if update was successful (data contains the updated record)
         success = len(response.data) > 0
         if success:
             print(f"Successfully updated article {article_id} with topic name: '{topic_name}'")
+            
+            # Verify the update
+            verify_response = supabase_client.table("NewsArticle").select("Topic").eq("id", article_id).execute()
+            if verify_response.data:
+                updated_topic = verify_response.data[0].get("Topic")
+                print(f"Verified topic after update: '{updated_topic}'")
+                if updated_topic != topic_name:
+                    print(f"Warning: Topic verification failed. Expected '{topic_name}' but found '{updated_topic}'")
+                    return False
         else:
             print(f"Failed to update article {article_id} with topic name: '{topic_name}'")
         
         return success
     except Exception as e:
-        print(f"Error updating article {article_id} with topic: {e}")
+        print(f"Error updating article {article_id} with topic:")
+        print(f"Exception: {str(e)}")
+        print("Traceback:")
+        print(traceback.format_exc())
         return False
 
 async def process_article(article_id: int) -> bool:
@@ -193,6 +223,7 @@ async def process_article(article_id: int) -> bool:
         bool: True if processing was successful, False otherwise
     """
     try:
+        print(f"\nProcessing article {article_id}...")
         # Fetch the article
         response = supabase_client.table("NewsArticle").select("id", "EnglishHeadline", "EnglishArticle").eq("id", article_id).execute()
         
@@ -204,8 +235,11 @@ async def process_article(article_id: int) -> bool:
         headline = article.get("EnglishHeadline", "")
         content = article.get("EnglishArticle", "")
         
+        print(f"Found article: {headline}")
+        
         # Fetch active topics
         topics = fetch_active_topics()
+        print(f"Fetched {len(topics)} active topics for matching")
         
         # Match with topics
         matched_topic = match_article_with_topics(content, headline, topics)
@@ -216,13 +250,18 @@ async def process_article(article_id: int) -> bool:
             print(f"Matched article {article_id} with topic '{topic_name}' (ID: {topic_id})")
             
             # Update the article with the matched topic name
-            return await update_article_topic(article_id, topic_name)
+            success = await update_article_topic(article_id, topic_name)
+            print(f"Topic update {'succeeded' if success else 'failed'}")
+            return success
         else:
             print(f"No matching topic found for article {article_id}")
             return True  # Consider this a successful process, just with no match
             
     except Exception as e:
-        print(f"Error processing article {article_id}: {e}")
+        print(f"Error processing article {article_id}:")
+        print(f"Exception: {str(e)}")
+        print("Traceback:")
+        print(traceback.format_exc())
         return False
 
 async def process_all_articles() -> Tuple[int, int]:
@@ -326,6 +365,48 @@ async def update_articles_with_topic_names() -> Tuple[int, int]:
     except Exception as e:
         print(f"Error updating articles with topic names: {e}")
         return (0, 0)
+
+async def identify_article_topic(article_headline: str, article_content: str) -> Optional[int]:
+    """
+    Identifies a topic for an article's content and returns the topic ID.
+    This is used during article creation to assign a topic immediately.
+    
+    Args:
+        article_headline (str): The headline of the article
+        article_content (str): The main content of the article
+        
+    Returns:
+        Optional[int]: The ID of the matched topic or None if no match found
+    """
+    try:
+        print(f"\nIdentifying topic for new article: {article_headline[:50]}...")
+        
+        # Fetch active topics
+        topics = fetch_active_topics()
+        print(f"Fetched {len(topics)} active topics for matching")
+        
+        if not topics:
+            print("No topics available for matching")
+            return None
+        
+        # Match with topics
+        matched_topic = match_article_with_topics(article_content, article_headline, topics)
+        
+        if matched_topic:
+            topic_id = matched_topic.get("id")
+            topic_name = matched_topic.get("TopicName")
+            print(f"Identified topic '{topic_name}' (ID: {topic_id}) for new article")
+            return topic_id
+        else:
+            print(f"No matching topic found for new article")
+            return None
+            
+    except Exception as e:
+        print(f"Error identifying topic for new article:")
+        print(f"Exception: {str(e)}")
+        print("Traceback:")
+        print(traceback.format_exc())
+        return None
         
 if __name__ == "__main__":
     # Run standalone test when called directly
