@@ -150,13 +150,30 @@ async def scrape_sports_news(
             extraction_strategy=strategy,
             cache_mode=CacheMode.DISABLED
         )
+    
+    # Check if extracted content is None before attempting to decode
+    if result.extracted_content is None:
+        print(f"Error: No content extracted from {url}")
+        return []
+    
     try:
         decoded_content = result.extracted_content.encode('latin-1', 'replace').decode('utf-8', 'replace')
     except Exception as e:
         print(f"Decoding error: {e}")
         decoded_content = result.extracted_content
-
-    extracted_data = json.loads(decoded_content)
+    
+    # Check again if decoded_content is None before parsing JSON
+    if decoded_content is None:
+        print(f"Error: Failed to decode content from {url}")
+        return []
+    
+    try:
+        extracted_data = json.loads(decoded_content)
+    except Exception as e:
+        print(f"JSON parsing error: {e}")
+        print(f"Raw content: {decoded_content[:200]}...")  # Print first 200 chars for debugging
+        return []
+    
     cleaned_data = []
     for item in extracted_data:
         # Clean URL for extraction using our enhanced logic:
