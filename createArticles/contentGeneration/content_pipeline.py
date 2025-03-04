@@ -22,6 +22,8 @@ from createArticles.contentGeneration.db_operations import (
     update_existing_article,
     mark_articles_as_processed
 )
+# Import topic identification functions
+from topicManagement.topic_matcher import identify_article_topic
 
 async def extract_article_content(article):
     """
@@ -57,7 +59,7 @@ async def process_content(article_group):
         article_group (list): Group of similar articles to process together
         
     Returns:
-        bool: True if processing was successful, False otherwise
+        tuple: (processed_news_result_ids, news_article_ids) - Lists of processed NewsResult IDs and the corresponding NewsArticle IDs
     """
     combined_content = ""
     combined_related = []
@@ -104,7 +106,7 @@ async def process_content(article_group):
     # Skip if no content was extracted
     if not combined_content.strip():
         print("No content extracted for this group, skipping...")
-        return False
+        return [], []
     
     # Convert keywords set to list
     final_keywords = list(combined_keywords)
@@ -138,10 +140,11 @@ async def process_content(article_group):
             # Mark all new articles in the group as processed
             new_article_ids = [article["id"] for article in article_group if "Status" not in article]
             mark_articles_as_processed(new_article_ids)
-            return True
+            # Return the new article IDs and the existing article ID
+            return new_article_ids, [existing_article["id"]]
         else:
             print(f"Updated article {existing_article['id']} failed review - not marking as processed")
-            return False
+            return [], []
     
     else:
         # Handle completely new article group - find an image
@@ -150,18 +153,32 @@ async def process_content(article_group):
         # Use the first article in the group as the representative record
         representative_article = article_group[0]
         
-        # Create a new article record
+        # Identify the topic for the article before creating it
+        print("Identifying topic for the new article...")
+        article_content = english_data.get("content", "")
+        article_headline = english_data.get("headline", "")
+        topic_id = await identify_article_topic(article_headline, article_content)
+        
+        if topic_id:
+            print(f"Topic identified for new article: {topic_id}")
+        else:
+            print("No topic could be identified for the article")
+        
+        # Create a new article record with the topic already included
         new_record_id = await create_new_article(
             representative_article,
             english_data,
             german_data,
             image_data,
-            is_reviewed=True
+            is_reviewed=True,
+            topic_id=topic_id
         )
         
         # If article was created and passed review, mark all articles in group as processed
         if new_record_id:
-            mark_articles_as_processed([article["id"] for article in article_group])
-            return True
+            processed_ids = [article["id"] for article in article_group]
+            mark_articles_as_processed(processed_ids)
+            # Return the processed article IDs and the new record ID
+            return processed_ids, [new_record_id]
         
-        return False
+        return [], []

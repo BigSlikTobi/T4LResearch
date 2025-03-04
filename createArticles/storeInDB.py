@@ -11,7 +11,8 @@ def create_news_article_record(
     english_data: dict,
     german_data: dict,
     image_data: dict,
-    is_reviewed: bool = False  # Add parameter with default False
+    is_reviewed: bool = False,  # Add parameter with default False
+    topic_id: int = None  # Add topic_id parameter
 ) -> int:
     """
     Inserts a new record into 'NewsArticle'.
@@ -26,6 +27,7 @@ def create_news_article_record(
         german_data: German translation data
         image_data: Image metadata
         is_reviewed: Whether the article has been reviewed/cleaned
+        topic_id: The topic ID to assign to this article
     """
     try:
         # Extract base URL from imageSource for imageAttribution
@@ -37,6 +39,18 @@ def create_news_article_record(
         team_detector = detectTeam()  # CHANGED
         team_detection = team_detector.detect_team(english_data.get("content", ""))  # CHANGED
         team_name = team_detection.get("team", "")
+        
+        # Get the topic name if a topic ID is provided
+        topic_name = None
+        if topic_id:
+            try:
+                # Fetch the topic name from the Topics table
+                topic_response = supabase_client.table("Topics").select("TopicName").eq("id", topic_id).execute()
+                if topic_response.data and len(topic_response.data) > 0:
+                    topic_name = topic_response.data[0]["TopicName"]
+                    print(f"Resolved topic ID {topic_id} to name: '{topic_name}'")
+            except Exception as e:
+                print(f"Error fetching topic name for ID {topic_id}: {e}")
 
         # Build the record to insert, now including the team field.
         record_to_insert = {
@@ -56,7 +70,8 @@ def create_news_article_record(
             "isHeadline": False,  # Assuming default value is false.
             "Team": team_name,
             "isReviewed": is_reviewed,  # Use the parameter instead of hardcoding False
-            "Status": "NEW"  # Adding Status field with default value "NEW"
+            "Status": "NEW",  # Adding Status field with default value "NEW"
+            "Topic": topic_name  # Use the topic name instead of ID
         }
 
         # CHANGED: use direct access to result.data
@@ -64,6 +79,8 @@ def create_news_article_record(
         if result.data:
             new_id = result.data[0]["id"]
             print(f"Created new record in 'NewsArticle' table with ID: {new_id}")
+            if topic_name:
+                print(f"Article assigned to topic: '{topic_name}'")
             return new_id
         else:
             print("Failed to create new record: No data returned from insert operation.")
