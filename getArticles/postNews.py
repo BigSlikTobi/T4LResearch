@@ -20,7 +20,7 @@ import LLMSetup
 # Import the new client from OpenAI (v1.0.0+)
 from openai import OpenAI
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 
@@ -187,13 +187,18 @@ async def main():
                 if embedding:
                     article['embedding'] = embedding
             
-            # Pass the single article directly, not wrapped in a list
-            result = supabase_client.post_new_source_article_to_supabase(article)
-            article_name = article.get("uniqueName", article.get("id", "Unknown"))
-            logging.info(f"Successfully posted article: {article_name}")
+            # Post article to Supabase (fixing the issue with how we pass the article)
+            # The method expects a single dictionary, not a list
+            try:
+                result = supabase_client.post_new_source_article_to_supabase(article)
+                article_name = article.get("uniqueName", article.get("id", "Unknown"))
+                logging.info(f"Successfully posted article: {article_name}")
+            except Exception as e:
+                article_name = article.get("uniqueName", article.get("id", "Unknown"))
+                logging.error(f"Error posting {article_name} to Supabase: {e}")
         except Exception as e:
             article_name = article.get("uniqueName", article.get("id", "Unknown"))
-            logging.error(f"Error posting {article_name}: {e}")
+            logging.error(f"Error processing {article_name}: {e}")
             continue
 
 if __name__ == "__main__":
