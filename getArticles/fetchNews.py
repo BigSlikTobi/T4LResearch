@@ -147,7 +147,6 @@ async def scrape_sports_news(
     """
     
     print(f"provider: {provider}")
-    
     try:
         strategy = LLMExtractionStrategy(
             llm_provider=provider,
