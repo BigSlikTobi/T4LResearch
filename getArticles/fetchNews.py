@@ -135,8 +135,8 @@ async def scrape_sports_news(
     """
 
     strategy = LLMExtractionStrategy(
-        provider=provider,
-        api_token=api_token,
+        llm_provider=provider,
+        llm_api_token=api_token,
         schema=schema.schema_json(),
         extraction_type="schemas",
         instruction=instruction
