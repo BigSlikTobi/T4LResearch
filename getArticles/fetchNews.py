@@ -146,7 +146,7 @@ async def scrape_sports_news(
     If the page is javascript-heavy, try to identify news links from their position, styling, or context.
     """
     
-    print(f"provider: {provider}")
+    logger.info(f"provider: {provider}")
     try:
         strategy = LLMExtractionStrategy(
             llm_provider=provider,
