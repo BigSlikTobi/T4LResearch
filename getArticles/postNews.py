@@ -187,8 +187,7 @@ async def main():
                 if embedding:
                     article['embedding'] = embedding
             
-            # Post article to Supabase (fixing the issue with how we pass the article)
-            # The method expects a single dictionary, not a list
+            # Fixed: Pass the article directly as a dictionary, not as a list
             try:
                 result = supabase_client.post_new_source_article_to_supabase(article)
                 article_name = article.get("uniqueName", article.get("id", "Unknown"))
