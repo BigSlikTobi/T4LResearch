@@ -10,7 +10,7 @@ import re
 import urllib.parse
 from urllib.parse import urlparse
 import unicodedata
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from dotenv import load_dotenv
 from .fetchNews import get_all_news_items  # Using relative import
@@ -126,14 +126,24 @@ async def main():
     llm_choice = "openai"
     try:
         # Initialize the client (this can be reused if desired)
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        LLMSetup.initialize_model(llm_choice)
         logging.info("LLMs initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize LLMs: {e}")
         return
-
-    # Obtain news articles using the helper from fetchNews.py
-    news_articles = await get_all_news_items()
+    
+    try:
+        # Obtain news articles using the helper from fetchNews.py
+        news_articles = await get_all_news_items()
+        
+        if not news_articles:
+            logging.warning("No news articles were fetched. Check the fetchNews.py implementation.")
+            return
+            
+        logging.info(f"Successfully fetched {len(news_articles)} articles")
+    except Exception as e:
+        logging.error(f"Failed to fetch news articles: {e}")
+        return
     
     DEBUG_ASCII = os.getenv("DEBUG_ASCII", "").lower() == "true"
     if DEBUG_ASCII:
@@ -147,28 +157,37 @@ async def main():
                 logging.info(f"  Cleaned URL: {repr(cleaned)}")
                 logging.info(f"  ASCII codes: {[ord(c) for c in cleaned]}")
         return  # Skip posting if debugging
-
+    
     for article in news_articles:
         try:
-            if 'url' in article:
-                raw_url = article['url']
-                logging.debug(f"Raw URL: {repr(raw_url)}")
-                cleaned = clean_url(raw_url)
-                logging.debug(f"Cleaned URL: {repr(cleaned)}")
-                if not is_valid_url(cleaned):
-                    logging.warning(f"Invalid URL after cleaning: {cleaned}")
-                    continue
-                logging.debug(f"Final URL before posting: {repr(cleaned)}")
-                logging.debug(f"Final URL ASCII codes: {[ord(c) for c in cleaned]}")
-                article['url'] = cleaned
-
-                # Generate summary and embedding using the new client methods
-                summary = await generate_summary(cleaned, article.get('headline', ''), llm_choice)
-                embedding = await generate_embedding(summary) if summary else None
+            if 'url' not in article:
+                logging.warning(f"Article missing URL field: {article}")
+                continue
                 
+            raw_url = article['url']
+            if not raw_url:
+                logging.warning(f"Empty URL for article: {article.get('headline', 'Unknown headline')}")
+                continue
+                
+            logging.debug(f"Raw URL: {repr(raw_url)}")
+            cleaned = clean_url(raw_url)
+            logging.debug(f"Cleaned URL: {repr(cleaned)}")
+            
+            if not is_valid_url(cleaned):
+                logging.warning(f"Invalid URL after cleaning: {cleaned}")
+                continue
+                
+            article['url'] = cleaned
+            
+            # Generate summary and embedding using the new client methods
+            summary = await generate_summary(cleaned, article.get('headline', ''), llm_choice)
+            if summary:
                 article['summary'] = summary
-                article['embedding'] = embedding
-
+                embedding = await generate_embedding(summary)
+                if embedding:
+                    article['embedding'] = embedding
+            
+            # Pass the single article directly, not wrapped in a list
             result = supabase_client.post_new_source_article_to_supabase(article)
             article_name = article.get("uniqueName", article.get("id", "Unknown"))
             logging.info(f"Successfully posted article: {article_name}")
