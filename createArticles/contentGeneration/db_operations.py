@@ -11,7 +11,7 @@ from supabase_init import SupabaseClient
 
 supabase_client = SupabaseClient()
 
-async def create_new_article(representative_article, english_data, german_data, image_data, is_reviewed=True):
+async def create_new_article(representative_article, english_data, german_data, image_data, is_reviewed=True, topic_id=None):
     """
     Create a new article record in the database.
     
@@ -21,6 +21,7 @@ async def create_new_article(representative_article, english_data, german_data, 
         german_data (dict): German article content and headline
         image_data (dict): Image data for the article
         is_reviewed (bool): Whether the article has been reviewed
+        topic_id (int, optional): The topic ID to assign to this article
         
     Returns:
         int/None: The ID of the newly created article, or None if creation failed
@@ -30,7 +31,8 @@ async def create_new_article(representative_article, english_data, german_data, 
         english_data, 
         german_data, 
         image_data,
-        is_reviewed=is_reviewed
+        is_reviewed=is_reviewed,
+        topic_id=topic_id
     )
     
     if new_record_id:
