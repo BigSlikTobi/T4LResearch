@@ -23,6 +23,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+
+    - name: Show Crawl4AI Version
+      run: |
+        pip show crawl4ai
+        python -c "import crawl4ai; print('Crawl4AI Version:', crawl4ai.__version__)"
         
     - name: Install Playwright browsers
       run: |
