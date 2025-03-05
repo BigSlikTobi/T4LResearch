@@ -1,7 +1,6 @@
 """
-Pipeline for processing articles sequentially, including topic assignment and verification.
+Pipeline for processing articles sequentially, excluding topic assignment.
 """
-
 import asyncio
 import sys
 import os
@@ -16,9 +15,6 @@ from createArticles.dataPrep import (
     group_similar_articles,
     process_article_group
 )
-# Import topic assignment functions
-from topicManagement.topic_matcher import process_article
-from topicManagement.debug_topic_assignment import debug_article_topic_assignment
 
 async def main():
     try:
@@ -49,9 +45,6 @@ async def main():
         groups = group_similar_articles(unprocessed_articles, active_articles, threshold=0.85)
         print(f"Found {len(groups)} group(s) of similar articles.")
         
-        # Track newly processed article IDs for topic assignment - Store as {news_result_id: news_article_id} mapping
-        newly_processed_article_mapping = {}
-        
         # Process each group sequentially
         for group in groups:
             try:
@@ -59,41 +52,12 @@ async def main():
                 print(f"\nProcessing group with article IDs: {group_ids}")
                 processed_article_ids, news_article_ids = await process_article_group(group)
                 
-                # Add successfully processed articles to our tracking dictionary
-                if processed_article_ids and news_article_ids:
-                    for i, news_result_id in enumerate(processed_article_ids):
-                        if i < len(news_article_ids):  # Safety check
-                            newly_processed_article_mapping[news_result_id] = news_article_ids[i]
-                
             except Exception as e:
                 print(f"Error processing article group {group_ids}: {e}")
                 import traceback
                 print(f"Exception traceback: {traceback.format_exc()}")
                 # Continue with next group even if this one fails
                 continue
-        
-        # After processing all groups, assign topics to the newly processed articles
-        if newly_processed_article_mapping:
-            print("\n========= ASSIGNING TOPICS TO NEW ARTICLES =========")
-            print(f"Assigning topics to {len(newly_processed_article_mapping)} newly processed articles...")
-            
-            for news_result_id, news_article_id in newly_processed_article_mapping.items():
-                try:
-                    print(f"Assigning topic to article {news_article_id} (from NewsResult {news_result_id})...")
-                    
-                    # Process article with news_article_id directly
-                    await process_article(news_article_id)
-                    
-                    # After processing, run the debug routine to verify and fix if needed
-                    print(f"\n========= VERIFYING TOPIC ASSIGNMENT FOR ARTICLE {news_article_id} =========")
-                    await debug_article_topic_assignment(news_article_id)
-                        
-                except Exception as e:
-                    print(f"Error assigning topic to article {news_article_id}: {e}")
-                    import traceback
-                    print(f"Exception traceback: {traceback.format_exc()}")
-                    # Continue with next article even if this one fails
-                    continue
     
     except Exception as e:
         print(f"Error in main processing pipeline: {e}")

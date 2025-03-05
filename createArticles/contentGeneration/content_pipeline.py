@@ -22,8 +22,6 @@ from createArticles.contentGeneration.db_operations import (
     update_existing_article,
     mark_articles_as_processed
 )
-# Import topic identification functions
-from topicManagement.topic_matcher import identify_article_topic
 
 async def extract_article_content(article):
     """
@@ -153,25 +151,14 @@ async def process_content(article_group):
         # Use the first article in the group as the representative record
         representative_article = article_group[0]
         
-        # Identify the topic for the article before creating it
-        print("Identifying topic for the new article...")
-        article_content = english_data.get("content", "")
-        article_headline = english_data.get("headline", "")
-        topic_id = await identify_article_topic(article_headline, article_content)
-        
-        if topic_id:
-            print(f"Topic identified for new article: {topic_id}")
-        else:
-            print("No topic could be identified for the article")
-        
-        # Create a new article record with the topic already included
+        # Create a new article record without topic assignment
         new_record_id = await create_new_article(
             representative_article,
             english_data,
             german_data,
             image_data,
             is_reviewed=True,
-            topic_id=topic_id
+            topic_id=None  # No topic assignment
         )
         
         # If article was created and passed review, mark all articles in group as processed
