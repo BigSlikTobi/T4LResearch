@@ -1,4 +1,4 @@
-# fetchNews.py
+# TODO: Enable support for new crawl4AI version
 
 import os
 import sys
