@@ -103,9 +103,11 @@ async def process_all_articles(verbose: bool = False, batch_size: int = 10):
         for article_id in batch:
             print(f"\nProcessing article ID: {article_id}")
             
-            # Check article status
-            status = await get_article_status(article_id)
-            
+            # Check articles status in batch
+        statuses = await get_articles_status(batch)
+        
+        for article_id in batch:
+            status = statuses[article_id]
             if not status["exists"]:
                 print(f"Article ID {article_id} not found in database. Skipping.")
                 continue
