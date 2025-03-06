@@ -6,7 +6,7 @@ import asyncio
 import argparse
 import sys
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 # Add parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -63,6 +63,27 @@ async def get_all_article_ids() -> List[int]:
         print(f"Error fetching article IDs: {e}")
         return []
 
+async def get_article_status(article_id: int) -> Dict[str, Any]:
+    """Check which summaries need to be generated for a specific article"""
+    try:
+        response = supabase.client.table("NewsArticle") \
+            .select("id", "EnglishSummary", "GermanSummary") \
+            .eq("id", article_id) \
+            .execute()
+        
+        if not response.data:
+            return {"exists": False, "english_needed": False, "german_needed": False}
+            
+        article = response.data[0]
+        return {
+            "exists": True,
+            "english_needed": article.get("EnglishSummary") is None,
+            "german_needed": article.get("GermanSummary") is None
+        }
+    except Exception as e:
+        print(f"Error checking article status: {e}")
+        return {"exists": False, "english_needed": False, "german_needed": False}
+
 async def process_all_articles(verbose: bool = False, batch_size: int = 10):
     """Process all articles in batches"""
     article_ids = await get_all_article_ids()
@@ -82,13 +103,26 @@ async def process_all_articles(verbose: bool = False, batch_size: int = 10):
         for article_id in batch:
             print(f"\nProcessing article ID: {article_id}")
             
-            # Generate English summary
-            print("Generating English summary...")
-            await process_english(verbose, article_id)
+            # Check article status
+            status = await get_article_status(article_id)
             
-            # Generate German summary
-            print("Generating German summary...")
-            await process_german(verbose, article_id)
+            if not status["exists"]:
+                print(f"Article ID {article_id} not found in database. Skipping.")
+                continue
+            
+            # Generate English summary if needed
+            if status["english_needed"]:
+                print("Generating English summary...")
+                await process_english(verbose, article_id)
+            else:
+                print("English summary already exists. Skipping.")
+            
+            # Generate German summary if needed
+            if status["german_needed"]:
+                print("Generating German summary...")
+                await process_german(verbose, article_id)
+            else:
+                print("German summary already exists. Skipping.")
 
 async def main():
     parser = argparse.ArgumentParser(description="Generate summaries for both English and German articles")
@@ -110,33 +144,41 @@ async def main():
     
     if args.article_id:
         # Process single article
-        if args.english_only and args.german_only:
-            print("Warning: Both --english-only and --german-only flags used; running both generators anyway")
-            run_both = True
-        elif args.english_only:
-            run_both = False
-            print("Running English summary generation only")
-            await process_english(args.verbose, args.article_id)
-            if args.print:
-                await print_summaries(args.article_id)
-        elif args.german_only:
-            run_both = False
-            print("Running German summary generation only")
-            await process_german(args.verbose, args.article_id)
-            if args.print:
-                await print_summaries(args.article_id)
-        else:
-            run_both = True
+        article_status = await get_article_status(args.article_id)
         
-        if run_both:
+        if not article_status["exists"]:
+            print(f"Article ID {args.article_id} not found in database.")
+            return
+            
+        english_needed = article_status["english_needed"]
+        german_needed = article_status["german_needed"]
+        
+        # Check if there's anything to process
+        if not english_needed and not german_needed:
+            print(f"Article ID {args.article_id} already has both summaries. Nothing to process.")
+            if args.print:
+                await print_summaries(args.article_id)
+            return
+            
+        if args.english_only and args.german_only:
+            print("Warning: Both --english-only and --german-only flags used; will process only missing summaries")
+        
+        # Process English summary if needed and requested
+        if (english_needed and not args.german_only) or args.english_only:
             print("===== Generating English Summaries =====")
             await process_english(args.verbose, args.article_id)
+        elif not args.english_only:
+            print("English summary already exists. Skipping.")
             
+        # Process German summary if needed and requested
+        if (german_needed and not args.english_only) or args.german_only:
             print("\n===== Generating German Summaries =====")
             await process_german(args.verbose, args.article_id)
+        elif not args.german_only:
+            print("German summary already exists. Skipping.")
             
-            if args.print:
-                await print_summaries(args.article_id)
+        if args.print:
+            await print_summaries(args.article_id)
     else:
         # Process all articles that need summaries
         await process_all_articles(args.verbose, args.batch_size)
