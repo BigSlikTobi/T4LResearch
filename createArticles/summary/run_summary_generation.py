@@ -84,6 +84,35 @@ async def get_article_status(article_id: int) -> Dict[str, Any]:
         print(f"Error checking article status: {e}")
         return {"exists": False, "english_needed": False, "german_needed": False}
 
+async def get_articles_status(article_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    """Check which summaries need to be generated for multiple articles"""
+    try:
+        # Query to get status for all articles in the batch
+        response = supabase.client.table("NewsArticle") \
+            .select("id", "EnglishSummary", "GermanSummary") \
+            .in_("id", article_ids) \
+            .execute()
+        
+        # Initialize results dictionary
+        results = {article_id: {"exists": False, "english_needed": False, "german_needed": False} 
+                   for article_id in article_ids}
+        
+        # Process response data
+        for article in response.data:
+            article_id = article["id"]
+            results[article_id] = {
+                "exists": True,
+                "english_needed": article.get("EnglishSummary") is None,
+                "german_needed": article.get("GermanSummary") is None
+            }
+        
+        return results
+    except Exception as e:
+        print(f"Error checking articles status: {e}")
+        # Return default status for all articles in case of error
+        return {article_id: {"exists": False, "english_needed": False, "german_needed": False} 
+                for article_id in article_ids}
+
 async def process_all_articles(verbose: bool = False, batch_size: int = 10):
     """Process all articles in batches"""
     article_ids = await get_all_article_ids()
@@ -103,7 +132,7 @@ async def process_all_articles(verbose: bool = False, batch_size: int = 10):
         for article_id in batch:
             print(f"\nProcessing article ID: {article_id}")
             
-            # Check articles status in batch
+        # Check articles status in batch
         statuses = await get_articles_status(batch)
         
         for article_id in batch:
