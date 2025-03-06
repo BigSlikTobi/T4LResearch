@@ -23,9 +23,18 @@ gemini_model = model_info["model"]
 supabase = SupabaseClient()
 
 # Load prompts from YAML file
-with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts.yaml"), "r", encoding="utf-8") as f:
-    prompts = yaml.safe_load(f)
-
+try:
+    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts.yaml"), "r", encoding="utf-8") as f:
+        prompts = yaml.safe_load(f)
+except FileNotFoundError:
+    logging.error("The prompts.yaml file was not found.")
+    sys.exit(1)
+except yaml.YAMLError as exc:
+    logging.error(f"Error parsing YAML file: {exc}")
+    sys.exit(1)
+except Exception as exc:
+    logging.error(f"An unexpected error occurred: {exc}")
+    sys.exit(1)
 async def generate_german_summary(article_content: str, verbose: bool = False) -> str:
     """
     Generates a bold, attention-grabbing 2-sentence summary of a German article.
