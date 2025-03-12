@@ -85,6 +85,6 @@ async def check_processed_articles_similarity():
     """
     print("\n===== STARTING EXTENDED SIMILARITY CHECK =====")
     print("Running extended similarity check between new and processed articles...")
-    # Use the same threshold as in the review.py file (0.75)
-    await check_similarity_and_update(threshold=0.75)
+
+    await check_similarity_and_update(threshold=0.89)
     print("===== COMPLETED EXTENDED SIMILARITY CHECK =====\n")
