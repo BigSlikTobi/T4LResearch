@@ -9,7 +9,7 @@ NEWS_SOURCES = [
     'espn.com',
     'nfl.com',
     'foxsports.com',
-    # Add more official news sources as needed
+    # Enable more sources as needed
 ]
 
 def is_news_source(url: str) -> bool:

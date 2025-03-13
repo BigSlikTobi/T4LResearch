@@ -267,4 +267,5 @@ def get_default_sources() -> List[Dict[str, Any]]:
         {"name": "bleacherreport", "url": "https://bleacherreport.com/nfl", "base_url": "https://bleacherreport.com", "execute": True},
         {"name": "nytimes", "url": "https://www.nytimes.com/section/sports/football", "base_url": "https://www.nytimes.com", "execute": False},
         {"name": "foxsports", "url": "https://www.foxsports.com/nfl/news", "base_url": "https://www.foxsports.com", "execute": True}
+        # Add more sources as needed
     ]
