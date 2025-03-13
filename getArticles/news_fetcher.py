@@ -264,6 +264,7 @@ def get_default_sources() -> List[Dict[str, Any]]:
     return [
         {"name": "nfl", "url": "https://www.nfl.com/news/", "base_url": "https://www.nfl.com", "execute": True},
         {"name": "espn", "url": "https://www.espn.com/nfl/", "base_url": "https://www.espn.com", "execute": True},
-        {"name": "bleacherreport", "url": "https://bleacherreport.com/nfl", "base_url": "https://bleacherreport.com", "execute": False},
-        {"name": "nytimes", "url": "https://www.nytimes.com/section/sports/football", "base_url": "https://www.nytimes.com", "execute": False}
+        {"name": "bleacherreport", "url": "https://bleacherreport.com/nfl", "base_url": "https://bleacherreport.com", "execute": True},
+        {"name": "nytimes", "url": "https://www.nytimes.com/section/sports/football", "base_url": "https://www.nytimes.com", "execute": False},
+        {"name": "foxsports", "url": "https://www.foxsports.com/nfl/news", "base_url": "https://www.foxsports.com", "execute": True}
     ]
