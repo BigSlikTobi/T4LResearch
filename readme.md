@@ -1,4 +1,4 @@
-# T4L Research Project
+# T4L Research Project -DEPRECATED DON'T USE-
 ## A Cutting-Edge News Enrichment Platform
 
 ## Table of Contents
